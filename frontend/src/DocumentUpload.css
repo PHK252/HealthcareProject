@@ -1,0 +1,92 @@
+.secondary-button {
+  margin-left: 8px;
+  background: #edf2f7 !important;
+  color: #243447 !important;
+}
+
+.task-review {
+  margin-top: 28px;
+  border-top: 1px solid #dce3eb;
+  padding-top: 20px;
+}
+
+.review-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 16px 0;
+  font-size: 13px;
+}
+
+.review-counts span {
+  padding: 7px 10px;
+  border-radius: 7px;
+  background: #f0f4f8;
+}
+
+.candidate-card {
+  padding: 16px;
+  margin: 14px 0;
+  border: 1px solid #dce3eb;
+  border-radius: 10px;
+}
+
+.candidate-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.task-status {
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  text-transform: capitalize;
+  background: #f0f4f8;
+}
+
+.task-status.confirmed {
+  background: #e5f5eb;
+  color: #17663a;
+}
+
+.task-status.rejected {
+  background: #fdebea;
+  color: #a12622;
+}
+
+.candidate-text {
+  line-height: 1.6;
+}
+
+.source-evidence {
+  margin-top: 14px;
+  padding: 12px;
+  background: #f6f8fa;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.source-evidence blockquote {
+  margin: 8px 0 0;
+  padding-left: 12px;
+  border-left: 3px solid #9aafc5;
+  line-height: 1.6;
+}
+
+.candidate-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.candidate-actions button {
+  margin: 0;
+}
+
+.candidate-actions button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
