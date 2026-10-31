@@ -13,6 +13,7 @@ type TaskCandidate = {
   page: number;
   status: "needs_review" | "confirmed" | "rejected";
   method: string;
+  completed: boolean;
 };
 
 type ExtractionResult = {
@@ -23,10 +24,16 @@ type ExtractionResult = {
   task_candidates: TaskCandidate[];
 };
 
-export default function DocumentUpload() {
+type DocumentUploadProps = {
+  candidates: TaskCandidate[];
+  onCandidatesChange: (candidates: TaskCandidate[]) => void;
+  onDocumentUploaded: () => void;
+};
+
+
+export default function DocumentUpload({candidates, onCandidatesChange, onDocumentUploaded,}: DocumentUploadProps) {
   const [file, setFile] = useState<File | null>(null);
   const [result, setResult] = useState<ExtractionResult | null>(null);
-  const [candidates, setCandidates] = useState<TaskCandidate[]>([]);
   const [loading, setLoading] = useState(false);
   const [showText, setShowText] = useState(false);
   const [error, setError] = useState("");
@@ -37,7 +44,6 @@ export default function DocumentUpload() {
     setLoading(true);
     setError("");
     setResult(null);
-    setCandidates([]);
 
     try {
       const formData = new FormData();
@@ -60,7 +66,18 @@ export default function DocumentUpload() {
       const extracted = data as ExtractionResult;
 
       setResult(extracted);
-      setCandidates(extracted.task_candidates ?? []);
+
+    // Retrieve ALL saved tasks, including those from earlier uploads.
+      const tasksResponse = await fetch("http://localhost:8000/tasks");
+
+      if (!tasksResponse.ok) {
+         throw new Error("Document uploaded, but could not reload saved tasks.");
+      }
+
+      const savedTasks = await tasksResponse.json();
+      onCandidatesChange(savedTasks);
+
+      onDocumentUploaded();
     } catch (err) {
       setError(
         err instanceof Error
@@ -72,18 +89,44 @@ export default function DocumentUpload() {
     }
   }
 
-  function updateCandidate(
-    taskId: string,
-    status: TaskCandidate["status"]
-  ) {
-    setCandidates((current) =>
-      current.map((candidate) =>
-        candidate.task_id === taskId
-          ? { ...candidate, status }
-          : candidate
-      )
-    );
-  }
+  async function updateCandidate(
+  taskId: string,
+  status: TaskCandidate["status"]
+    ) {
+    try {
+        const response = await fetch(
+        `http://localhost:8000/tasks/${taskId}`,
+        {
+            method: "PATCH",
+            headers: {
+            "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ status }),
+        }
+        );
+
+        if (!response.ok) {
+        throw new Error("Could not save task status.");
+        }
+
+        // Only update the interface after the backend confirms success.
+        onCandidatesChange(
+        candidates.map((candidate) =>
+            candidate.task_id === taskId
+            ? { ...candidate, status }
+            : candidate
+        )
+        );
+
+        setError("");
+    } catch (err) {
+        setError(
+        err instanceof Error
+            ? err.message
+            : "Could not save task status."
+        );
+    }
+    }
 
   const confirmedCount = candidates.filter(
     (candidate) => candidate.status === "confirmed"
@@ -110,7 +153,6 @@ export default function DocumentUpload() {
         onChange={(event) => {
           setFile(event.target.files?.[0] ?? null);
           setResult(null);
-          setCandidates([]);
           setError("");
         }}
       />
@@ -138,6 +180,8 @@ export default function DocumentUpload() {
             >
               {showText ? "Hide extracted text" : "View extracted text"}
             </button>
+
+            
 
             {showText &&
               result.pages.map((page) => (

@@ -355,3 +355,23 @@ footer {
     padding-top: 28px;
   }
 }
+
+.completion-control {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 12px 0;
+  font-size: 14px;
+  color: #344054;
+  cursor: pointer;
+}
+
+.completion-control input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.completion-control input:checked + span {
+  text-decoration: line-through;
+}

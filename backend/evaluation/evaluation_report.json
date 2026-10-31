@@ -1,0 +1,104 @@
+{
+  "document": "carebridge_sample_discharge_instructions.pdf",
+  "expected_task_count": 6,
+  "results": [
+    {
+      "method": "Regex baseline",
+      "true_positives": 6,
+      "false_positives": 11,
+      "false_negatives": 0,
+      "precision": 0.353,
+      "recall": 1.0,
+      "f1": 0.522,
+      "matches": [
+        {
+          "prediction": "\u2022 Avoid activities that worsen your discomfort until you have received further guidance from your treating clinician.",
+          "expected": "Avoid activities that worsen your discomfort until you have received further guidance from your treating clinician.",
+          "similarity": 1.0
+        },
+        {
+          "prediction": "\u2022 If you were referred to a specialist during your visit, check the referral paperwork for the clinic's contact details and",
+          "expected": "If you were referred to a specialist during your visit, check the referral paperwork for the clinic's contact details and next steps.",
+          "similarity": 0.952
+        },
+        {
+          "prediction": "For an emergency, contact local",
+          "expected": "For an emergency, contact local emergency services.",
+          "similarity": 0.909
+        },
+        {
+          "prediction": "Seek urgent medical assessment if you develop new numbness, fingers that become pale or blue, rapidly increasing",
+          "expected": "Seek urgent medical assessment if you develop new numbness, fingers that become pale or blue, rapidly increasing swelling, severe or worsening pain, or any other symptom that concerns you.",
+          "similarity": 0.81
+        },
+        {
+          "prediction": "\u2022 Contact Example Community Clinic to arrange a follow-up appointment in 7\u201310 days.",
+          "expected": "Contact Example Community Clinic to arrange a follow-up appointment in 7\u201310 days. If you already have an appointment, confirm the date and time with the clinic.",
+          "similarity": 0.718
+        },
+        {
+          "prediction": "\u2022 Keep the wrist support in place as directed by the clinician who treated you.",
+          "expected": "Keep the wrist support in place as directed by the clinician who treated you. If you are unsure how long to use it, contact the clinic for clarification.",
+          "similarity": 0.684
+        }
+      ],
+      "unmatched_predictions": [
+        "You are being discharged home with instructions to arrange routine follow-up and",
+        "monitor your symptoms.",
+        "Follow-up plan",
+        "appointment, confirm the date and time with the clinic.",
+        "contact the clinic for clarification.",
+        "\u2022 The discharge paperwork does not list a new prescription medication.",
+        "If you were given separate medication",
+        "instructions, follow up with the prescribing clinician or pharmacist if anything is unclear.",
+        "When to seek help",
+        "Questions and contact information",
+        "If you have questions about the instructions, contact the clinic."
+      ],
+      "missed_expected_tasks": []
+    },
+    {
+      "method": "Ollama Llama 3.2",
+      "true_positives": 6,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "matches": [
+        {
+          "prediction": "For an emergency, contact local emergency services.",
+          "expected": "For an emergency, contact local emergency services.",
+          "similarity": 1.0
+        },
+        {
+          "prediction": "Seek urgent medical assessment if you develop new numbness, fingers that become pale or blue, rapidly increasing swelling, severe or worsening pain, or any other symptom that concerns you.",
+          "expected": "Seek urgent medical assessment if you develop new numbness, fingers that become pale or blue, rapidly increasing swelling, severe or worsening pain, or any other symptom that concerns you.",
+          "similarity": 1.0
+        },
+        {
+          "prediction": "Avoid activities that worsen your discomfort until you have received further guidance from your treating clinician.",
+          "expected": "Avoid activities that worsen your discomfort until you have received further guidance from your treating clinician.",
+          "similarity": 1.0
+        },
+        {
+          "prediction": "Keep the wrist support in place as directed by the clinician who treated you. If you are unsure how long to use it, contact the clinic for clarification.",
+          "expected": "Keep the wrist support in place as directed by the clinician who treated you. If you are unsure how long to use it, contact the clinic for clarification.",
+          "similarity": 1.0
+        },
+        {
+          "prediction": "If you were referred to a specialist during your visit, check the referral paperwork for the clinic's contact details and next steps.",
+          "expected": "If you were referred to a specialist during your visit, check the referral paperwork for the clinic's contact details and next steps.",
+          "similarity": 1.0
+        },
+        {
+          "prediction": "Contact Example Community Clinic to arrange a follow-up appointment in 7\u201310 days. If you already have an appointment, confirm the date and time with the clinic.",
+          "expected": "Contact Example Community Clinic to arrange a follow-up appointment in 7\u201310 days. If you already have an appointment, confirm the date and time with the clinic.",
+          "similarity": 1.0
+        }
+      ],
+      "unmatched_predictions": [],
+      "missed_expected_tasks": []
+    }
+  ]
+}

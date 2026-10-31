@@ -1,0 +1,35 @@
+{
+  "document": "carebridge_sample_discharge_instructions.pdf",
+  "expected_tasks": [
+    {
+      "source_quote": "Contact Example Community Clinic to arrange a follow-up appointment in 7–10 days. If you already have an appointment, confirm the date and time with the clinic.",
+      "category": "appointment",
+      "conditional": false
+    },
+    {
+      "source_quote": "If you were referred to a specialist during your visit, check the referral paperwork for the clinic's contact details and next steps.",
+      "category": "follow_up",
+      "conditional": true
+    },
+    {
+      "source_quote": "Keep the wrist support in place as directed by the clinician who treated you. If you are unsure how long to use it, contact the clinic for clarification.",
+      "category": "other",
+      "conditional": false
+    },
+    {
+      "source_quote": "Avoid activities that worsen your discomfort until you have received further guidance from your treating clinician.",
+      "category": "activity_restriction",
+      "conditional": false
+    },
+    {
+      "source_quote": "Seek urgent medical assessment if you develop new numbness, fingers that become pale or blue, rapidly increasing swelling, severe or worsening pain, or any other symptom that concerns you.",
+      "category": "warning_sign",
+      "conditional": true
+    },
+    {
+      "source_quote": "For an emergency, contact local emergency services.",
+      "category": "warning_sign",
+      "conditional": true
+    }
+  ]
+}
