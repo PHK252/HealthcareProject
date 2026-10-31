@@ -12,6 +12,8 @@ from typing import Optional
 from pydantic import BaseModel, Field
 from typing import Literal
 import unicodedata
+import math
+from collections import Counter
 
 
 app = FastAPI(title="CareBridge API")
@@ -66,6 +68,22 @@ def initialize_database():
                     ON DELETE CASCADE
             )
         """)
+        
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS document_chunks (
+                chunk_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                document_id INTEGER NOT NULL,
+                page INTEGER NOT NULL,
+                chunk_index INTEGER NOT NULL,
+                content TEXT NOT NULL,
+                FOREIGN KEY (document_id)
+                    REFERENCES documents(id)
+                    ON DELETE CASCADE
+            )
+            """
+        )
+        
 
     # Add completion tracking to databases created by earlier versions.
     columns = {
@@ -81,6 +99,38 @@ def initialize_database():
                 ADD COLUMN completed INTEGER NOT NULL DEFAULT 0
             """)
 
+    # Add structured LLM extraction fields.
+    columns = {
+        row["name"]
+        for row in connection.execute(
+            "PRAGMA table_info(care_tasks)"
+        ).fetchall()
+    }
+
+    if "category" not in columns:
+        connection.execute("""
+            ALTER TABLE care_tasks
+            ADD COLUMN category TEXT NOT NULL DEFAULT 'other'
+        """)
+
+    if "due_date" not in columns:
+        connection.execute("""
+            ALTER TABLE care_tasks
+            ADD COLUMN due_date TEXT
+        """)
+
+    if "confidence" not in columns:
+        connection.execute("""
+            ALTER TABLE care_tasks
+            ADD COLUMN confidence REAL NOT NULL DEFAULT 0.0
+        """)
+
+    if "needs_review" not in columns:
+        connection.execute("""
+            ALTER TABLE care_tasks
+            ADD COLUMN needs_review INTEGER NOT NULL DEFAULT 1
+        """)        
+
 
 initialize_database()
 
@@ -88,6 +138,9 @@ initialize_database()
 # --------------------------------------------------
 # MODELS
 # --------------------------------------------------
+
+class QuestionRequest(BaseModel):
+    question: str
 
 class TaskStatusUpdate(BaseModel):
     status: str
@@ -274,6 +327,38 @@ def identify_task_candidates(pages):
 # DOCUMENT EXTRACTION AND STORAGE
 # --------------------------------------------------
 
+@app.post("/documents/{document_id}/ask")
+async def ask_document_question(
+    document_id: int,
+    request: QuestionRequest,
+):
+    question = request.question.strip()
+
+    if not question:
+        raise HTTPException(
+            status_code=400,
+            detail="Please enter a question.",
+        )
+
+    # Verify that the document exists.
+    with get_db() as connection:
+        document = connection.execute(
+            "SELECT id FROM documents WHERE id = ?",
+            (document_id,),
+        ).fetchone()
+
+    if document is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Document not found.",
+        )
+
+    return await answer_question_with_rag(
+        question=question,
+        document_id=document_id,
+    )
+
+
 @app.post("/documents/extract")
 async def extract_document(file: UploadFile = File(...)):
 
@@ -303,13 +388,6 @@ async def extract_document(file: UploadFile = File(...)):
                 }
                 for page_number, page in enumerate(document, start=1)
             ]
-            print("\n========== EXTRACTED PDF TEXT ==========")
-
-            for page in pages:
-                print(f"\nPAGE {page['page']}:")
-                print(page["text"])
-
-            print("\n========================================")
 
     except Exception:
         raise HTTPException(
@@ -332,9 +410,58 @@ async def extract_document(file: UploadFile = File(...)):
             ),
         )
 
-    task_candidates = identify_task_candidates(pages)
+    # Try LLM extraction first.
+    extraction_warning = None
+
+    try:
+        llm_result = await extract_tasks_with_ollama(pages)
+
+        task_candidates = []
+
+        for task in llm_result["tasks"]:
+            task_candidates.append({
+                "task_id": str(uuid.uuid4()),
+                "suggested_text": task["task_text"],
+                "source_quote": task["source_quote"],
+                "page": task["page"],
+                "status": "needs_review",
+                "method": "ollama_llama3.2",
+                "completed": False,
+                "category": task["category"],
+                "due_date": task["due_date"],
+                "confidence": task["confidence"],
+                "needs_review": True,
+            })
+
+        extraction_method = "ollama_llama3.2"
+
+    except Exception as error:
+        # Fall back to the original rule-based extractor.
+        print(f"Ollama extraction failed: {error}")
+
+        extraction_warning = (
+            "LLM extraction was unavailable. "
+            "Rule-based extraction was used instead."
+        )
+
+        task_candidates = identify_task_candidates(pages)
+
+        for task in task_candidates:
+            task.update({
+                "category": "other",
+                "due_date": None,
+                "confidence": 0.0,
+                "needs_review": True,
+                "completed": False,
+            })
+
+        extraction_method = "rule_based"
 
     # Save the document and its tasks together.
+    # Split extracted pages into searchable chunks.
+    document_chunks = chunk_document_pages(pages)
+
+    # Save the document, its tasks, and its chunks together.
     with get_db() as connection:
 
         cursor = connection.execute(
@@ -347,6 +474,7 @@ async def extract_document(file: UploadFile = File(...)):
 
         document_id = cursor.lastrowid
 
+        # Save task candidates.
         for task in task_candidates:
             connection.execute(
                 """
@@ -357,9 +485,14 @@ async def extract_document(file: UploadFile = File(...)):
                     source_quote,
                     page,
                     status,
-                    method
+                    method,
+                    category,
+                    due_date,
+                    confidence,
+                    needs_review,
+                    completed
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     task["task_id"],
@@ -369,22 +502,45 @@ async def extract_document(file: UploadFile = File(...)):
                     task["page"],
                     task["status"],
                     task["method"],
+                    task["category"],
+                    task["due_date"],
+                    task["confidence"],
+                    int(task["needs_review"]),
+                    int(task["completed"]),
+                ),
+            )
+
+        # Save searchable document chunks.
+        for chunk in document_chunks:
+            connection.execute(
+                """
+                INSERT INTO document_chunks (
+                    document_id,
+                    page,
+                    chunk_index,
+                    content
+                )
+                VALUES (?, ?, ?, ?)
+                """,
+                (
+                    document_id,
+                    chunk["page"],
+                    chunk["chunk_index"],
+                    chunk["content"],
                 ),
             )
 
     return {
         "document_id": document_id,
+        "chunk_count": len(document_chunks),
         "filename": file.filename,
         "page_count": len(pages),
         "pages": pages,
         "text": extracted_text,
         "task_candidates": task_candidates,
+        "extraction_method": extraction_method,
+        "extraction_warning": extraction_warning,
     }
-
-
-# --------------------------------------------------
-# RETRIEVE SAVED DOCUMENTS
-# --------------------------------------------------
 
 @app.get("/documents")
 def get_documents():
@@ -419,14 +575,17 @@ def get_tasks():
                 page,
                 status,
                 method,
-                completed
+                completed,
+                category,
+                due_date,
+                confidence,
+                needs_review
             FROM care_tasks
             ORDER BY rowid
             """
         ).fetchall()
 
     return [dict(row) for row in rows]
-
 
 # --------------------------------------------------
 # UPDATE TASK REVIEW STATUS
@@ -550,3 +709,306 @@ def normalize_text(text: str) -> str:
     text = text.replace("\u00a0", " ")
     text = re.sub(r"\s+", " ", text)
     return text.strip()
+
+def chunk_document_pages(
+    pages: list[dict],
+    chunk_size: int = 800,
+    overlap: int = 150,
+) -> list[dict]:
+    """
+    Split document pages into overlapping text chunks.
+
+    chunk_size and overlap are measured in characters.
+    Each chunk retains its original page number.
+    """
+    chunks = []
+
+    for page in pages:
+        text = normalize_text(page["text"])
+
+        if not text:
+            continue
+
+        start = 0
+        chunk_index = 0
+
+        while start < len(text):
+            end = min(start + chunk_size, len(text))
+
+            # Prefer ending at a word boundary.
+            if end < len(text):
+                boundary = text.rfind(" ", start, end)
+                if boundary > start:
+                    end = boundary
+
+            content = text[start:end].strip()
+
+            if content:
+                chunks.append({
+                    "page": page["page"],
+                    "chunk_index": chunk_index,
+                    "content": content,
+                })
+
+                chunk_index += 1
+
+            if end >= len(text):
+                break
+
+            start = max(end - overlap, start + 1)
+
+    return chunks
+
+def retrieve_relevant_chunks(
+    query: str,
+    top_k: int = 3,
+    document_id: int | None = None,
+) -> list[dict]:
+    """
+    Retrieve the most relevant document chunks using BM25 scoring.
+    Optionally restrict retrieval to one uploaded document.
+    """
+
+    stop_words = {
+        "the", "a", "an", "is", "are", "was", "were",
+        "to", "of", "in", "on", "for", "and", "or",
+        "with", "what", "when", "where", "how", "do",
+        "does", "i", "my", "me", "you", "your",
+        "should", "can", "could", "would"
+    }
+
+    def tokenize(text: str) -> list[str]:
+        words = re.findall(r"\b[a-zA-Z0-9]+\b", text.lower())
+        return [word for word in words if word not in stop_words]
+
+    query_terms = tokenize(query)
+
+    if not query_terms:
+        return []
+
+    with get_db() as connection:
+        rows = connection.execute(
+            """
+            SELECT
+                dc.chunk_id,
+                dc.document_id,
+                dc.page,
+                dc.chunk_index,
+                dc.content,
+                d.filename
+            FROM document_chunks dc
+            JOIN documents d ON dc.document_id = d.id
+            WHERE (? IS NULL OR dc.document_id = ?)
+            """,
+            (document_id, document_id),
+        ).fetchall()
+
+    if not rows:
+        return []
+
+    documents = []
+
+    for row in rows:
+        content = row["content"]
+        tokens = tokenize(content)
+
+        documents.append({
+            "chunk_id": row["chunk_id"],
+            "document_id": row["document_id"],
+            "page": row["page"],
+            "chunk_index": row["chunk_index"],
+            "filename": row["filename"],
+            "content": content,
+            "tokens": tokens,
+            "term_counts": Counter(tokens),
+        })
+
+    total_documents = len(documents)
+    average_length = sum(
+        len(doc["tokens"]) for doc in documents
+    ) / total_documents
+
+    # BM25 parameters.
+    k1 = 1.5
+    b = 0.75
+
+    # Count how many chunks contain each query term.
+    document_frequency = {}
+
+    for term in set(query_terms):
+        document_frequency[term] = sum(
+            1 for doc in documents
+            if doc["term_counts"][term] > 0
+        )
+
+    # Score each chunk.
+    for doc in documents:
+        score = 0.0
+        length = len(doc["tokens"])
+
+        for term in query_terms:
+            frequency = doc["term_counts"][term]
+
+            if frequency == 0:
+                continue
+
+            df = document_frequency[term]
+
+            idf = math.log(
+                1 + (total_documents - df + 0.5) / (df + 0.5)
+            )
+
+            denominator = frequency + k1 * (
+                1 - b + b * length / average_length
+            )
+
+            score += idf * (
+                frequency * (k1 + 1) / denominator
+            )
+
+        doc["score"] = score
+
+    # Highest scoring chunks first.
+    results = sorted(
+        documents,
+        key=lambda doc: doc["score"],
+        reverse=True,
+    )
+
+    # Remove internal scoring data from the response.
+    return [
+        {
+            "chunk_id": doc["chunk_id"],
+            "document_id": doc["document_id"],
+            "filename": doc["filename"],
+            "page": doc["page"],
+            "content": doc["content"],
+            "score": round(doc["score"], 4),
+        }
+        for doc in results[:top_k]
+        if doc["score"] > 0
+    ]
+
+async def answer_question_with_rag(
+    question: str,
+    document_id: int,
+) -> dict:
+
+    # Retrieve relevant passages from this document.
+    chunks = retrieve_relevant_chunks(
+        query=question,
+        top_k=3,
+        document_id=document_id,
+    )
+
+    if not chunks:
+        return {
+            "answer": (
+                "I couldn't find relevant information "
+                "in this document to answer that question."
+            ),
+            "sources": [],
+        }
+
+    # Label each passage so the model can cite its evidence.
+    context = "\n\n".join(
+        f"[Source {index + 1} | Page {chunk['page']}]\n"
+        f"{chunk['content']}"
+        for index, chunk in enumerate(chunks)
+    )
+
+    prompt = f"""
+You are a document question-answering assistant for CareBridge.
+
+Answer the user's question using ONLY the supplied document passages.
+
+Rules:
+- Do not invent medical instructions or facts.
+- Do not use outside medical knowledge to fill gaps.
+- If the passages do not contain the answer, say so clearly.
+- Preserve important dates, quantities, and conditions exactly.
+- Cite supporting passages using [Source 1], [Source 2], etc.
+- Distinguish explicit instructions from general information.
+- Remind the user to consult their healthcare professional
+  when the document is unclear.
+
+DOCUMENT PASSAGES:
+
+{context}
+
+USER QUESTION:
+
+{question}
+"""
+
+    try:
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            response = await client.post(
+                "http://localhost:11434/api/chat",
+                json={
+                    "model": "llama3.2",
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": (
+                                "You answer questions using only "
+                                "provided document evidence."
+                            ),
+                        },
+                        {
+                            "role": "user",
+                            "content": prompt,
+                        },
+                    ],
+                    "stream": False,
+                    "options": {
+                        "temperature": 0,
+                    },
+                },
+            )
+
+            response.raise_for_status()
+
+            answer = response.json()["message"]["content"]
+
+    except Exception as error:
+        print(f"RAG answer generation failed: {error}")
+        raise HTTPException(
+            status_code=503,
+            detail="The local language model is unavailable.",
+        )
+
+    sources = [
+        {
+            "source": index + 1,
+            "document_id": chunk["document_id"],
+            "filename": chunk["filename"],
+            "page": chunk["page"],
+            "content": chunk["content"],
+        }
+        for index, chunk in enumerate(chunks)
+    ]
+
+    return {
+        "answer": answer,
+        "sources": sources,
+    }
+
+
+# if __name__ == "__main__":
+#     test_pages = [
+#         {
+#             "page": 1,
+#             "text": "Take your medication every morning. "
+#                     "Schedule a follow-up appointment within two weeks."
+#         }
+#     ]
+
+#     test_chunks = chunk_document_pages(
+#         test_pages,
+#         chunk_size=60,
+#         overlap=15,
+#     )
+
+#     for chunk in test_chunks:
+#         print(chunk)

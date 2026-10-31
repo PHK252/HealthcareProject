@@ -375,3 +375,149 @@ footer {
 .completion-control input:checked + span {
   text-decoration: line-through;
 }
+
+.checklist-progress {
+  margin: 20px 0 28px;
+}
+
+.progress-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  font-size: 0.9rem;
+}
+
+.progress-track {
+  height: 9px;
+  background: #e5e7eb;
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: #16a34a;
+  border-radius: 99px;
+  transition: width 0.25s ease;
+}
+
+.task-category {
+  margin-top: 24px;
+}
+
+.category-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.category-heading h3 {
+  margin: 0;
+}
+
+.category-heading span {
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+.completed-task {
+  opacity: 0.75;
+}
+
+.task-due-date {
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+.task-source {
+  margin-top: 14px;
+  font-size: 0.9rem;
+}
+
+.task-source summary {
+  cursor: pointer;
+  color: #475569;
+  font-weight: 600;
+}
+
+.task-source blockquote {
+  margin: 12px 0 0;
+  padding-left: 12px;
+  border-left: 3px solid #cbd5e1;
+  color: #64748b;
+}
+#questions select,
+#questions textarea {
+  display: block;
+  width: 100%;
+  margin: 8px 0 18px;
+  padding: 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font: inherit;
+  background: white;
+}
+
+#questions textarea {
+  resize: vertical;
+}
+
+#questions textarea {
+  color: #1e293b;
+  background-color: #ffffff;
+  caret-color: #1e293b;
+}
+
+#questions textarea::placeholder {
+  color: #94a3b8;
+}
+
+#questions button {
+  padding: 10px 18px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+#questions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.question-result {
+  margin-top: 24px;
+  padding: 20px;
+  background: #f8fafc;
+  border-radius: 10px;
+}
+
+.answer-text {
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.answer-sources {
+  margin-top: 24px;
+}
+
+.answer-sources details {
+  margin: 12px 0;
+  padding: 12px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.answer-sources summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.answer-sources blockquote {
+  margin: 12px 0 0;
+  padding-left: 12px;
+  border-left: 3px solid #cbd5e1;
+  color: #475569;
+}

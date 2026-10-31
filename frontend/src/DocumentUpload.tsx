@@ -8,12 +8,19 @@ type ExtractedPage = {
 
 type TaskCandidate = {
   task_id: string;
+  document_id: number;
   suggested_text: string;
   source_quote: string;
   page: number;
   status: "needs_review" | "confirmed" | "rejected";
   method: string;
   completed: boolean;
+
+  // Structured LLM extraction fields
+  category: string;
+  due_date: string | null;
+  confidence: number;
+  needs_review: boolean;
 };
 
 type ExtractionResult = {
@@ -22,6 +29,8 @@ type ExtractionResult = {
   pages: ExtractedPage[];
   text: string;
   task_candidates: TaskCandidate[];
+  extraction_method: string;
+  extraction_warning: string | null;
 };
 
 type DocumentUploadProps = {
@@ -168,109 +177,141 @@ export default function DocumentUpload({candidates, onCandidatesChange, onDocume
       {error && <p className="upload-error">{error}</p>}
 
       {result && (
-        <>
-          <div className="extraction-result">
-            <h3>{result.filename}</h3>
-            <p>Extracted {result.page_count} page(s).</p>
+      <>
+        <div className="extraction-result">
+          <h3>{result.filename}</h3>
+          <p>Extracted {result.page_count} page(s).</p>
 
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={() => setShowText((current) => !current)}
-            >
-              {showText ? "Hide extracted text" : "View extracted text"}
-            </button>
+          <p>
+            Extraction method:{" "}
+            <strong>
+              {result.extraction_method === "ollama_llama3.2"
+                ? "Local LLM (Llama 3.2)"
+                : "Rule-based fallback"}
+            </strong>
+          </p>
 
-            
+          {result.extraction_warning && (
+            <p className="upload-error">{result.extraction_warning}</p>
+          )}
 
-            {showText &&
-              result.pages.map((page) => (
-                <div key={page.page} className="extracted-page">
-                  <h4>Page {page.page}</h4>
-                  <pre>
-                    {page.text || "(No selectable text on this page.)"}
-                  </pre>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => setShowText((current) => !current)}
+          >
+            {showText ? "Hide extracted text" : "View extracted text"}
+          </button>
+
+          {showText &&
+            result.pages.map((page) => (
+              <div key={page.page} className="extracted-page">
+                <h4>Page {page.page}</h4>
+                <pre>
+                  {page.text || "(No selectable text on this page.)"}
+                </pre>
+              </div>
+            ))}
+        </div>
+
+        <div className="task-review">
+          <h3>Care task review</h3>
+          <p>
+            These are AI-generated suggestions, not verified medical
+            instructions. Review each item against the original document.
+          </p>
+
+          <div className="review-counts">
+            <span>Needs review: {pendingCount}</span>
+            <span>Confirmed: {confirmedCount}</span>
+            <span>Rejected: {rejectedCount}</span>
+          </div>
+
+          {candidates.length === 0 ? (
+            <p>No candidate tasks were found in this document.</p>
+          ) : (
+            candidates.map((candidate) => (
+              <article className="candidate-card" key={candidate.task_id}>
+                <div className="candidate-heading">
+                  <strong>
+                    {candidate.category.replaceAll("_", " ")}
+                  </strong>
+
+                  <span className={`task-status ${candidate.status}`}>
+                    {candidate.status.replace("_", " ")}
+                  </span>
                 </div>
-              ))}
-          </div>
 
-          <div className="task-review">
-            <h3>Care task review</h3>
-            <p>
-              These are rule-based suggestions, not verified medical
-              instructions. Review each item against the original document.
-            </p>
+                <p className="candidate-text">
+                  {candidate.suggested_text}
+                </p>
 
-            <div className="review-counts">
-              <span>Needs review: {pendingCount}</span>
-              <span>Confirmed: {confirmedCount}</span>
-              <span>Rejected: {rejectedCount}</span>
-            </div>
+                <div className="candidate-metadata">
+                  <span>
+                    <strong>Category:</strong>{" "}
+                    {candidate.category.replaceAll("_", " ")}
+                  </span>
 
-            {candidates.length === 0 ? (
-              <p>No candidate tasks were found in this document.</p>
-            ) : (
-              candidates.map((candidate) => (
-                <article
-                  className="candidate-card"
-                  key={candidate.task_id}
-                >
-                  <div className="candidate-heading">
-                    <strong>{candidate.task_id}</strong>
-                    <span className={`task-status ${candidate.status}`}>
-                      {candidate.status.replace("_", " ")}
-                    </span>
-                  </div>
+                  <span>
+                    <strong>Due date:</strong>{" "}
+                    {candidate.due_date ?? "Not specified"}
+                  </span>
 
-                  <p className="candidate-text">
-                    {candidate.suggested_text}
-                  </p>
+                  <span>
+                    <strong>Extraction score:</strong>{" "}
+                    {candidate.confidence.toFixed(2)}
+                  </span>
 
-                  <div className="source-evidence">
-                    <strong>Source · Page {candidate.page}</strong>
-                    <blockquote>{candidate.source_quote}</blockquote>
-                  </div>
+                  <span>
+                    <strong>Method:</strong> {candidate.method}
+                  </span>
+                </div>
 
-                  <div className="candidate-actions">
+                <div className="source-evidence">
+                  <strong>Source · Page {candidate.page}</strong>
+                  <blockquote>{candidate.source_quote}</blockquote>
+                </div>
+
+                <div className="candidate-actions">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateCandidate(candidate.task_id, "confirmed")
+                    }
+                    disabled={candidate.status === "confirmed"}
+                  >
+                    Confirm
+                  </button>
+
+                  <button
+                    type="button"
+                    className="reject-button"
+                    onClick={() =>
+                      updateCandidate(candidate.task_id, "rejected")
+                    }
+                    disabled={candidate.status === "rejected"}
+                  >
+                    Reject
+                  </button>
+
+                  {candidate.status !== "needs_review" && (
                     <button
                       type="button"
+                      className="secondary-button"
                       onClick={() =>
-                        updateCandidate(candidate.task_id, "confirmed")
+                        updateCandidate(candidate.task_id, "needs_review")
                       }
-                      disabled={candidate.status === "confirmed"}
                     >
-                      Confirm
+                      Undo
                     </button>
-
-                    <button
-                      type="button"
-                      className="reject-button"
-                      onClick={() =>
-                        updateCandidate(candidate.task_id, "rejected")
-                      }
-                      disabled={candidate.status === "rejected"}
-                    >
-                      Reject
-                    </button>
-
-                    {candidate.status !== "needs_review" && (
-                      <button
-                        type="button"
-                        className="secondary-button"
-                        onClick={() =>
-                          updateCandidate(candidate.task_id, "needs_review")
-                        }
-                      >
-                        Undo
-                      </button>
-                    )}
-                  </div>
-                </article>
-              ))
-            )}
-          </div>
-        </>
-      )}
+                  )}
+                </div>
+              </article>
+            ))
+          )}
+        </div>
+      </>
+    )}
     </section>
   );
 }

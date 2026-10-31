@@ -90,3 +90,20 @@
   opacity: 0.55;
   cursor: default;
 }
+
+.candidate-metadata {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 12px 0;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.candidate-metadata span {
+  display: inline-block;
+}
+
+.candidate-heading strong {
+  text-transform: capitalize;
+}
