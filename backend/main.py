@@ -2,7 +2,6 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from pathlib import Path
-import sqlite3
 import pymupdf
 import re
 import uuid
@@ -14,6 +13,16 @@ from typing import Literal
 import unicodedata
 import math
 from collections import Counter
+import os
+import boto3
+from dotenv import load_dotenv
+from sqlalchemy import create_engine, text
+from sqlalchemy.engine import RowMapping
+from sqlalchemy import (
+    MetaData, Table, Column, Integer, String, Text,
+    DateTime, Float, ForeignKey, Identity, inspect, text
+)
+
 
 
 app = FastAPI(title="CareBridge API")
@@ -35,102 +44,157 @@ app.add_middleware(
 
 DATABASE_PATH = Path(__file__).resolve().parent / "carebridge.db"
 
+# Load environment variables before reading configuration
+load_dotenv(Path(__file__).resolve().parent / ".env")
 
-def get_db():
-    connection = sqlite3.connect(DATABASE_PATH)
-    connection.row_factory = sqlite3.Row
-    connection.execute("PRAGMA foreign_keys = ON")
-    return connection
+# Database configuration
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    f"sqlite:///{DATABASE_PATH}"
+)
+
+# SQLAlchemy database engine
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,
+)
+
+AWS_REGION = os.getenv("AWS_REGION", "us-east-2")
+
+S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
+
+if not S3_BUCKET_NAME:
+    raise RuntimeError("S3_BUCKET_NAME is not configured.")
+
+# Initialize S3 client using local AWS credentials
+s3_client = boto3.client(
+    "s3",
+    region_name=AWS_REGION
+)
+
+def upload_pdf_to_s3(
+    file_content: bytes,
+    document_id: int,
+    filename: str
+) -> str:
+    """
+    Upload an original PDF to S3 and return its object key.
+    """
+
+    object_key = f"documents/{document_id}/{filename}"
+
+    s3_client.put_object(
+        Bucket=S3_BUCKET_NAME,
+        Key=object_key,
+        Body=file_content,
+        ContentType="application/pdf"
+    )
+
+    return object_key
+
 
 
 def initialize_database():
-    with get_db() as connection:
-        connection.execute("""
-            CREATE TABLE IF NOT EXISTS documents (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                filename TEXT NOT NULL,
-                page_count INTEGER NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
+    metadata = MetaData()
 
-        connection.execute("""
-            CREATE TABLE IF NOT EXISTS care_tasks (
-                task_id TEXT PRIMARY KEY,
-                document_id INTEGER NOT NULL,
-                suggested_text TEXT NOT NULL,
-                source_quote TEXT NOT NULL,
-                page INTEGER NOT NULL,
-                status TEXT NOT NULL DEFAULT 'needs_review',
-                method TEXT NOT NULL,
-                FOREIGN KEY (document_id)
-                    REFERENCES documents(id)
-                    ON DELETE CASCADE
-            )
-        """)
-        
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS document_chunks (
-                chunk_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                document_id INTEGER NOT NULL,
-                page INTEGER NOT NULL,
-                chunk_index INTEGER NOT NULL,
-                content TEXT NOT NULL,
-                FOREIGN KEY (document_id)
-                    REFERENCES documents(id)
-                    ON DELETE CASCADE
-            )
-            """
-        )
-        
+    # Documents table
+    Table(
+        "documents",
+        metadata,
+        Column("id", Integer, Identity(), primary_key=True),
+        Column("filename", String, nullable=False),
+        Column("page_count", Integer, nullable=False),
+        Column(
+            "created_at",
+            DateTime,
+            server_default=text("CURRENT_TIMESTAMP"),
+        ),
+        Column("s3_key", Text),
+    )
 
-    # Add completion tracking to databases created by earlier versions.
-    columns = {
-            row["name"]
-            for row in connection.execute(
-                "PRAGMA table_info(care_tasks)"
-            ).fetchall()
-        }
+    # Care tasks table
+    Table(
+        "care_tasks",
+        metadata,
+        Column("task_id", String, primary_key=True),
+        Column(
+            "document_id",
+            Integer,
+            ForeignKey("documents.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        Column("suggested_text", Text, nullable=False),
+        Column("source_quote", Text, nullable=False),
+        Column("page", Integer, nullable=False),
+        Column(
+            "status",
+            String,
+            nullable=False,
+            server_default=text("'needs_review'"),
+        ),
+        Column("method", String, nullable=False),
+        Column("completed", Integer, nullable=False, server_default=text("0")),
+        Column(
+            "category",
+            String,
+            nullable=False,
+            server_default=text("'other'"),
+        ),
+        Column("due_date", Text),
+        Column("confidence", Float, nullable=False, server_default=text("0.0")),
+        Column("needs_review", Integer, nullable=False, server_default=text("1")),
+    )
 
-    if "completed" not in columns:
-            connection.execute("""
-                ALTER TABLE care_tasks
-                ADD COLUMN completed INTEGER NOT NULL DEFAULT 0
-            """)
+    # Document chunks table
+    Table(
+        "document_chunks",
+        metadata,
+        Column("chunk_id", Integer, Identity(), primary_key=True),
+        Column(
+            "document_id",
+            Integer,
+            ForeignKey("documents.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        Column("page", Integer, nullable=False),
+        Column("chunk_index", Integer, nullable=False),
+        Column("content", Text, nullable=False),
+    )
 
-    # Add structured LLM extraction fields.
-    columns = {
-        row["name"]
-        for row in connection.execute(
-            "PRAGMA table_info(care_tasks)"
-        ).fetchall()
+    # Create tables that do not already exist.
+    metadata.create_all(engine)
+
+    # Add missing columns to older databases without deleting data.
+    migrations = {
+        "documents": {
+            "s3_key": "TEXT",
+        },
+        "care_tasks": {
+            "completed": "INTEGER NOT NULL DEFAULT 0",
+            "category": "TEXT NOT NULL DEFAULT 'other'",
+            "due_date": "TEXT",
+            "confidence": "REAL NOT NULL DEFAULT 0.0",
+            "needs_review": "INTEGER NOT NULL DEFAULT 1",
+        },
     }
 
-    if "category" not in columns:
-        connection.execute("""
-            ALTER TABLE care_tasks
-            ADD COLUMN category TEXT NOT NULL DEFAULT 'other'
-        """)
+    inspector = inspect(engine)
 
-    if "due_date" not in columns:
-        connection.execute("""
-            ALTER TABLE care_tasks
-            ADD COLUMN due_date TEXT
-        """)
+    with engine.begin() as connection:
+        for table_name, columns_to_add in migrations.items():
+            existing_columns = {
+                column["name"]
+                for column in inspector.get_columns(table_name)
+            }
 
-    if "confidence" not in columns:
-        connection.execute("""
-            ALTER TABLE care_tasks
-            ADD COLUMN confidence REAL NOT NULL DEFAULT 0.0
-        """)
-
-    if "needs_review" not in columns:
-        connection.execute("""
-            ALTER TABLE care_tasks
-            ADD COLUMN needs_review INTEGER NOT NULL DEFAULT 1
-        """)        
-
+            for column_name, column_definition in columns_to_add.items():
+                if column_name not in existing_columns:
+                    connection.execute(
+                        text(
+                            f"ALTER TABLE {table_name} "
+                            f"ADD COLUMN {column_name} {column_definition}"
+                        )
+                    )
 
 initialize_database()
 
@@ -341,11 +405,17 @@ async def ask_document_question(
         )
 
     # Verify that the document exists.
-    with get_db() as connection:
-        document = connection.execute(
-            "SELECT id FROM documents WHERE id = ?",
-            (document_id,),
-        ).fetchone()
+    with engine.connect() as connection:
+        result = connection.execute(
+            text("""
+                SELECT id
+                FROM documents
+                WHERE id = :document_id
+            """),
+            {"document_id": document_id},
+        )
+
+        document = result.mappings().first()
 
     if document is None:
         raise HTTPException(
@@ -357,7 +427,76 @@ async def ask_document_question(
         question=question,
         document_id=document_id,
     )
+@app.delete("/documents/{document_id}")
+async def delete_document(document_id: int):
 
+    # First, retrieve the document's S3 key.
+    with engine.connect() as connection:
+        result = connection.execute(
+            text("""
+                SELECT id, s3_key
+                FROM documents
+                WHERE id = :document_id
+            """),
+            {"document_id": document_id},
+        )
+
+        document = result.mappings().first()
+
+    if document is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Document not found.",
+        )
+
+    # Delete the original PDF from S3 first.
+    s3_key = document["s3_key"]
+
+    if s3_key:
+        try:
+            s3_client.delete_object(
+                Bucket=S3_BUCKET_NAME,
+                Key=s3_key,
+            )
+        except Exception as error:
+            print(f"S3 deletion failed: {error}")
+
+            raise HTTPException(
+                status_code=500,
+                detail="Could not delete the original PDF from storage.",
+            )
+
+    # Remove associated database records in one transaction.
+    with engine.begin() as connection:
+
+        connection.execute(
+            text("""
+                DELETE FROM care_tasks
+                WHERE document_id = :document_id
+            """),
+            {"document_id": document_id},
+        )
+
+        connection.execute(
+            text("""
+                DELETE FROM document_chunks
+                WHERE document_id = :document_id
+            """),
+            {"document_id": document_id},
+        )
+
+        connection.execute(
+            text("""
+                DELETE FROM documents
+                WHERE id = :document_id
+            """),
+            {"document_id": document_id},
+        )
+
+    return {
+        "message": "Document deleted successfully.",
+        "document_id": document_id,
+    }
 
 @app.post("/documents/extract")
 async def extract_document(file: UploadFile = File(...)):
@@ -436,7 +575,6 @@ async def extract_document(file: UploadFile = File(...)):
         extraction_method = "ollama_llama3.2"
 
     except Exception as error:
-        # Fall back to the original rule-based extractor.
         print(f"Ollama extraction failed: {error}")
 
         extraction_warning = (
@@ -457,77 +595,122 @@ async def extract_document(file: UploadFile = File(...)):
 
         extraction_method = "rule_based"
 
-    # Save the document and its tasks together.
     # Split extracted pages into searchable chunks.
     document_chunks = chunk_document_pages(pages)
 
-    # Save the document, its tasks, and its chunks together.
-    with get_db() as connection:
+    # Prepare the S3 filename.
+    safe_filename = Path(file.filename or "unnamed.pdf").name
 
-        cursor = connection.execute(
-            """
-            INSERT INTO documents (filename, page_count)
-            VALUES (?, ?)
-            """,
-            (file.filename or "unnamed.pdf", len(pages)),
+    # Save the document, tasks, and chunks together.
+    with engine.begin() as connection:
+
+        # Insert document and retrieve its generated ID.
+        result = connection.execute(
+            text("""
+                INSERT INTO documents (filename, page_count)
+                VALUES (:filename, :page_count)
+                RETURNING id
+            """),
+            {
+                "filename": file.filename or "unnamed.pdf",
+                "page_count": len(pages),
+            },
         )
 
-        document_id = cursor.lastrowid
+        document_id = result.scalar_one()
+
+        # Upload the original PDF to S3.
+        s3_key = upload_pdf_to_s3(
+            file_content=contents,
+            document_id=document_id,
+            filename=safe_filename,
+        )
+
+        # Save the S3 object key.
+        connection.execute(
+            text("""
+                UPDATE documents
+                SET s3_key = :s3_key
+                WHERE id = :document_id
+            """),
+            {
+                "s3_key": s3_key,
+                "document_id": document_id,
+            },
+        )
 
         # Save task candidates.
         for task in task_candidates:
             connection.execute(
-                """
-                INSERT INTO care_tasks (
-                    task_id,
-                    document_id,
-                    suggested_text,
-                    source_quote,
-                    page,
-                    status,
-                    method,
-                    category,
-                    due_date,
-                    confidence,
-                    needs_review,
-                    completed
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    task["task_id"],
-                    document_id,
-                    task["suggested_text"],
-                    task["source_quote"],
-                    task["page"],
-                    task["status"],
-                    task["method"],
-                    task["category"],
-                    task["due_date"],
-                    task["confidence"],
-                    int(task["needs_review"]),
-                    int(task["completed"]),
-                ),
+                text("""
+                    INSERT INTO care_tasks (
+                        task_id,
+                        document_id,
+                        suggested_text,
+                        source_quote,
+                        page,
+                        status,
+                        method,
+                        category,
+                        due_date,
+                        confidence,
+                        needs_review,
+                        completed
+                    )
+                    VALUES (
+                        :task_id,
+                        :document_id,
+                        :suggested_text,
+                        :source_quote,
+                        :page,
+                        :status,
+                        :method,
+                        :category,
+                        :due_date,
+                        :confidence,
+                        :needs_review,
+                        :completed
+                    )
+                """),
+                {
+                    "task_id": task["task_id"],
+                    "document_id": document_id,
+                    "suggested_text": task["suggested_text"],
+                    "source_quote": task["source_quote"],
+                    "page": task["page"],
+                    "status": task["status"],
+                    "method": task["method"],
+                    "category": task["category"],
+                    "due_date": task["due_date"],
+                    "confidence": task["confidence"],
+                    "needs_review": int(task["needs_review"]),
+                    "completed": int(task["completed"]),
+                },
             )
 
         # Save searchable document chunks.
         for chunk in document_chunks:
             connection.execute(
-                """
-                INSERT INTO document_chunks (
-                    document_id,
-                    page,
-                    chunk_index,
-                    content
-                )
-                VALUES (?, ?, ?, ?)
-                """,
-                (
-                    document_id,
-                    chunk["page"],
-                    chunk["chunk_index"],
-                    chunk["content"],
-                ),
+                text("""
+                    INSERT INTO document_chunks (
+                        document_id,
+                        page,
+                        chunk_index,
+                        content
+                    )
+                    VALUES (
+                        :document_id,
+                        :page,
+                        :chunk_index,
+                        :content
+                    )
+                """),
+                {
+                    "document_id": document_id,
+                    "page": chunk["page"],
+                    "chunk_index": chunk["chunk_index"],
+                    "content": chunk["content"],
+                },
             )
 
     return {
@@ -543,18 +726,19 @@ async def extract_document(file: UploadFile = File(...)):
     }
 
 @app.get("/documents")
-def get_documents():
+async def get_documents():
+    with engine.connect() as connection:
+        result = connection.execute(
+            text("""
+                SELECT id, filename, page_count, created_at
+                FROM documents
+                ORDER BY id DESC
+            """)
+        )
 
-    with get_db() as connection:
-        rows = connection.execute(
-            """
-            SELECT id, filename, page_count, created_at
-            FROM documents
-            ORDER BY id DESC
-            """
-        ).fetchall()
+        documents = result.mappings().all()
 
-    return [dict(row) for row in rows]
+    return [dict(document) for document in documents]
 
 
 # --------------------------------------------------
@@ -562,30 +746,21 @@ def get_documents():
 # --------------------------------------------------
 
 @app.get("/tasks")
-def get_tasks():
+async def get_tasks():
+    with engine.connect() as connection:
+        result = connection.execute(
+            text("""
+                SELECT task_id, document_id, suggested_text, source_quote,
+                       page, status, method, completed, category, due_date,
+                       confidence, needs_review
+                FROM care_tasks
+                ORDER BY document_id, page, task_id
+            """)
+        )
 
-    with get_db() as connection:
-        rows = connection.execute(
-            """
-            SELECT
-                task_id,
-                document_id,
-                suggested_text,
-                source_quote,
-                page,
-                status,
-                method,
-                completed,
-                category,
-                due_date,
-                confidence,
-                needs_review
-            FROM care_tasks
-            ORDER BY rowid
-            """
-        ).fetchall()
+        tasks = result.mappings().all()
 
-    return [dict(row) for row in rows]
+    return [dict(task) for task in tasks]
 
 # --------------------------------------------------
 # UPDATE TASK REVIEW STATUS
@@ -606,21 +781,21 @@ def update_task_status(task_id: str, update: TaskStatusUpdate):
             detail="Invalid task status.",
         )
 
-    with get_db() as connection:
-        cursor = connection.execute(
-            """
-            UPDATE care_tasks
-            SET status = ?
-            WHERE task_id = ?
-            """,
-            (update.status, task_id),
+    with engine.begin() as connection:
+        result = connection.execute(
+            text("""
+                UPDATE care_tasks
+                SET status = :status
+                WHERE task_id = :task_id
+            """),
+            {
+                "status": update.status,
+                "task_id": task_id,
+            },
         )
 
-        if cursor.rowcount == 0:
-            raise HTTPException(
-                status_code=404,
-                detail="Task not found.",
-            )
+        if result.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Task not found")
 
     return {
         "task_id": task_id,
@@ -632,21 +807,24 @@ def update_task_completion(
     task_id: str,
     update: TaskCompletionUpdate
 ):
-    with get_db() as connection:
-        cursor = connection.execute(
-            """
-            UPDATE care_tasks
-            SET completed = ?
-            WHERE task_id = ?
-            AND status = 'confirmed'
-            """,
-            (int(update.completed), task_id),
+    with engine.begin() as connection:
+        result = connection.execute(
+            text("""
+                UPDATE care_tasks
+                SET completed = :completed
+                WHERE task_id = :task_id
+                AND status = 'confirmed'
+            """),
+            {
+                "completed": 1 if update.completed else 0,
+                "task_id": task_id,
+            },
         )
 
-        if cursor.rowcount == 0:
+        if result.rowcount == 0:
             raise HTTPException(
                 status_code=404,
-                detail="Confirmed task not found.",
+                detail="Task not found or task is not confirmed.",
             )
 
     return {
@@ -786,22 +964,27 @@ def retrieve_relevant_chunks(
     if not query_terms:
         return []
 
-    with get_db() as connection:
-        rows = connection.execute(
-            """
-            SELECT
-                dc.chunk_id,
-                dc.document_id,
-                dc.page,
-                dc.chunk_index,
-                dc.content,
-                d.filename
-            FROM document_chunks dc
-            JOIN documents d ON dc.document_id = d.id
-            WHERE (? IS NULL OR dc.document_id = ?)
-            """,
-            (document_id, document_id),
-        ).fetchall()
+    with engine.connect() as connection:
+        result = connection.execute(
+            text("""
+                SELECT
+                    dc.chunk_id,
+                    dc.document_id,
+                    dc.page,
+                    dc.chunk_index,
+                    dc.content,
+                    d.filename
+                FROM document_chunks dc
+                JOIN documents d ON dc.document_id = d.id
+                WHERE (
+                    :document_id IS NULL
+                    OR dc.document_id = :document_id
+                )
+            """),
+            {"document_id": document_id},
+        )
+
+        rows = result.mappings().all()
 
     if not rows:
         return []

@@ -102,8 +102,16 @@ function App() {
     (task) => task.status === "needs_review"
   ).length;
 
+  const selectedDocumentTasks = candidates.filter(
+  (task) => task.document_id === Number(selectedDocumentId)
+  );
+
   const confirmedTasks = candidates.filter(
-    (task) => task.status === "confirmed"
+  (task) => task.status === "confirmed"
+  );
+  
+  const tasksNeedingReview = selectedDocumentTasks.filter(
+  (task) => task.status === "needs_review"
   );
 
     const categoryLabels: Record<string, string> = {
@@ -128,18 +136,63 @@ function App() {
     "other",
   ];
 
-  const groupedTasks = categoryOrder
-    .map((category) => ({
-      category,
-      tasks: confirmedTasks.filter(
-        (task) => task.category === category
-      ),
-    }))
-    .filter((group) => group.tasks.length > 0);
+  const checklistByDocument = documents
+    .map((document) => {
+      const documentTasks = confirmedTasks.filter(
+        (task) => task.document_id === document.id
+      );
+
+      return {
+        document,
+        groupedTasks: categoryOrder
+          .map((category) => ({
+            category,
+            tasks: documentTasks.filter(
+              (task) => task.category === category
+            ),
+          }))
+          .filter((group) => group.tasks.length > 0),
+      };
+    })
+    .filter((group) => group.groupedTasks.length > 0);
 
   const completedCount = confirmedTasks.filter(
     (task) => task.completed
   ).length;
+
+  async function reviewTask(
+    taskId: string,
+    status: "confirmed" | "rejected"
+  ) {
+    try {
+      const response = await fetch(
+        `http://localhost:8000/tasks/${taskId}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ status }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Could not update task status.");
+      }
+
+      setCandidates((current) =>
+        current.map((task) =>
+          task.task_id === taskId
+            ? { ...task, status }
+            : task
+        )
+      );
+    } catch (error) {
+      console.error("Task review failed:", error);
+      alert("Could not update this task. Please try again.");
+    }
+  }
+
 
   async function toggleTaskCompletion(
   taskId: string,
@@ -210,6 +263,56 @@ function App() {
       );
     } finally {
       setAskingQuestion(false);
+    }
+  }
+
+  async function handleDeleteDocument(documentId: number) {
+    const documentToDelete = documents.find(
+      (document) => document.id === documentId
+    );
+
+    if (!documentToDelete) return;
+
+    const confirmed = window.confirm(
+      `Are you sure you want to delete "${documentToDelete.filename}"? This will also delete its associated care tasks.`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      const response = await fetch(
+        `http://localhost:8000/documents/${documentId}`,
+        { method: "DELETE" }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || "Failed to delete document.");
+      }
+
+      // If this was the selected document, switch to another one.
+      if (selectedDocumentId === String(documentId)) {
+        const remainingDocuments = documents.filter(
+          (document) => document.id !== documentId
+        );
+
+        setSelectedDocumentId(
+          remainingDocuments.length > 0
+            ? String(remainingDocuments[0].id)
+            : ""
+        );
+
+        setQuestionResult(null);
+        setQuestionError("");
+      }
+
+      await refreshDocuments();
+      await refreshTasks();
+    } catch (error) {
+      console.error("Document deletion failed:", error);
+      window.alert(
+        error instanceof Error ? error.message : "Failed to delete document."
+      );
     }
   }
 
@@ -294,6 +397,102 @@ function App() {
               onDocumentUploaded={refreshDocuments}
             />
           </div>
+
+          <div className="document-list">
+            <h3>Uploaded documents</h3>
+
+            {documents.length === 0 ? (
+              <p className="muted">No documents uploaded yet.</p>
+            ) : (
+              documents.map((document) => (
+                <article className="document-card" key={document.id}>
+                  <div>
+                    <strong>{document.filename}</strong>
+                    <p className="muted">
+                      {document.page_count} pages · Uploaded{" "}
+                      {new Date(document.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="delete-button"
+                    onClick={() => handleDeleteDocument(document.id)}
+                  >
+                    Delete
+                  </button>
+                </article>
+              ))
+            )}
+          </div>
+        </section>
+
+        <section className="panel" id="review">
+          <div className="section-heading">
+            <div>
+              <h2>Review suggested tasks</h2>
+              <p>
+                Check each suggested instruction against your original document.
+              </p>
+            </div>
+            <span className="pill">
+              {tasksNeedingReview.length} awaiting review
+            </span>
+          </div>
+
+          {tasksNeedingReview.length === 0 ? (
+            <div className="empty-state">
+              <h3>All caught up!</h3>
+              <p>No tasks are waiting for review.</p>
+            </div>
+          ) : (
+            tasksNeedingReview.map((task) => (
+              <article className="candidate-card" key={task.task_id}>
+                <div className="candidate-heading">
+                  <strong>
+                    {categoryLabels[task.category] ?? "Other instructions"}
+                  </strong>
+                  <span className="task-status">
+                    Needs review
+                  </span>
+                </div>
+
+                <p className="candidate-text">
+                  {task.suggested_text}
+                </p>
+
+                {task.due_date && (
+                  <p className="task-due-date">
+                    Due: {task.due_date}
+                  </p>
+                )}
+
+                <details className="task-source">
+                  <summary>
+                    View original document · Page {task.page}
+                  </summary>
+                  <blockquote>{task.source_quote}</blockquote>
+                </details>
+
+                <div className="review-actions">
+                  <button
+                    type="button"
+                    onClick={() => reviewTask(task.task_id, "confirmed")}
+                  >
+                    Confirm task
+                  </button>
+
+                  <button
+                    type="button"
+                    className="delete-button"
+                    onClick={() => reviewTask(task.task_id, "rejected")}
+                  >
+                    Reject
+                  </button>
+                </div>
+              </article>
+            ))
+          )}
         </section>
 
         <section className="panel" id="questions">
@@ -414,88 +613,100 @@ function App() {
             </div>
           ) : (
             <>
-              <div className="checklist-progress">
-                <div className="progress-label">
-                  <span>Overall progress</span>
-                  <strong>
-                    {completedCount} of {confirmedTasks.length} completed
-                  </strong>
-                </div>
-
-                <div className="progress-track">
-                  <div
-                    className="progress-fill"
-                    style={{
-                      width: `${(completedCount / confirmedTasks.length) * 100}%`,
-                    }}
-                  />
-                </div>
+            <div className="checklist-progress">
+              <div className="progress-label">
+                <span>Overall progress</span>
+                <strong>
+                  {completedCount} of {confirmedTasks.length} completed
+                </strong>
               </div>
 
-              {groupedTasks.map((group) => (
-                <div className="task-category" key={group.category}>
-                  <div className="category-heading">
-                    <h3>
-                      {categoryLabels[group.category] ?? "Other instructions"}
-                    </h3>
-                    <span>
-                      {group.tasks.filter((task) => task.completed).length}
-                      {" / "}
-                      {group.tasks.length}
-                    </span>
-                  </div>
+              <div className="progress-track">
+                <div
+                  className="progress-fill"
+                  style={{
+                    width: `${
+                      confirmedTasks.length > 0
+                        ? (completedCount / confirmedTasks.length) * 100
+                        : 0
+                    }%`,
+                  }}
+                />
+              </div>
+            </div>
 
-                  <div className="confirmed-task-list">
-                    {group.tasks.map((task) => (
-                      <article
-                        className={`candidate-card ${task.completed ? "completed-task" : ""}`}
-                        key={task.task_id}
-                      >
-                        <div className="candidate-heading">
-                          <strong>
-                            {categoryLabels[task.category] ?? "Care task"}
-                          </strong>
-                          <span className="task-status confirmed">
-                            {task.completed ? "completed" : "pending"}
-                          </span>
-                        </div>
+            {checklistByDocument.map(({ document, groupedTasks }) => (
+              <div className="document-task-group" key={document.id}>
+                <h3 className="document-task-heading">
+                  {document.filename}
+                </h3>
 
-                        <p className="candidate-text">
-                          {task.suggested_text}
-                        </p>
+                {groupedTasks.map((group) => (
+                  <div className="task-category" key={group.category}>
+                    <div className="category-heading">
+                      <h3>
+                        {categoryLabels[group.category] ?? "Other instructions"}
+                      </h3>
+                      <span>
+                        {group.tasks.filter((task) => task.completed).length}
+                        {" / "}
+                        {group.tasks.length}
+                      </span>
+                    </div>
 
-                        {task.due_date && (
-                          <p className="task-due-date">
-                            Due: {task.due_date}
+                    <div className="confirmed-task-list">
+                      {group.tasks.map((task) => (
+                        <article
+                          className={`candidate-card ${task.completed ? "completed-task" : ""}`}
+                          key={task.task_id}
+                        >
+                          <div className="candidate-heading">
+                            <strong>
+                              {categoryLabels[task.category] ?? "Care task"}
+                            </strong>
+                            <span className="task-status confirmed">
+                              {task.completed ? "completed" : "pending"}
+                            </span>
+                          </div>
+
+                          <p className="candidate-text">
+                            {task.suggested_text}
                           </p>
-                        )}
 
-                        <label className="completion-control">
-                          <input
-                            type="checkbox"
-                            checked={task.completed}
-                            onChange={(event) =>
-                              toggleTaskCompletion(
-                                task.task_id,
-                                event.target.checked
-                              )
-                            }
-                          />
-                          Mark as completed
-                        </label>
+                          {task.due_date && (
+                            <p className="task-due-date">
+                              Due: {task.due_date}
+                            </p>
+                          )}
 
-                        <details className="task-source">
-                          <summary>
-                            View original document · Page {task.page}
-                          </summary>
-                          <blockquote>{task.source_quote}</blockquote>
-                        </details>
-                      </article>
-                    ))}
+                          <label className="completion-control">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(task.completed)}
+                              onChange={(event) =>
+                                toggleTaskCompletion(
+                                  task.task_id,
+                                  event.target.checked
+                                )
+                              }
+                            />
+                            Mark as completed
+                          </label>
+
+                          <details className="task-source">
+                            <summary>
+                              View original document · Page {task.page}
+                            </summary>
+                            <blockquote>{task.source_quote}</blockquote>
+                          </details>
+                        </article>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </>
+                ))}
+              </div>
+            ))}
+          </>
           )}
         </section>
 
