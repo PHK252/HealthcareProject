@@ -1,5 +1,6 @@
 import { useState } from "react";
 import "./DocumentUpload.css";
+import { supabase } from "./supabase";
 
 type ExtractedPage = {
   page: number;
@@ -58,10 +59,21 @@ export default function DocumentUpload({candidates, onCandidatesChange, onDocume
       const formData = new FormData();
       formData.append("file", file);
 
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session) {
+        throw new Error("You must be signed in.");
+      }
+
       const response = await fetch(
         "http://localhost:8000/documents/extract",
         {
           method: "POST",
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
           body: formData,
         }
       );
@@ -77,7 +89,11 @@ export default function DocumentUpload({candidates, onCandidatesChange, onDocume
       setResult(extracted);
 
     // Retrieve ALL saved tasks, including those from earlier uploads.
-      const tasksResponse = await fetch("http://localhost:8000/tasks");
+      const tasksResponse = await fetch("http://localhost:8000/tasks", {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
 
       if (!tasksResponse.ok) {
          throw new Error("Document uploaded, but could not reload saved tasks.");
@@ -103,15 +119,24 @@ export default function DocumentUpload({candidates, onCandidatesChange, onDocume
   status: TaskCandidate["status"]
     ) {
     try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session) {
+          throw new Error("You must be signed in.");
+        }
+
         const response = await fetch(
-        `http://localhost:8000/tasks/${taskId}`,
-        {
+          `http://localhost:8000/tasks/${taskId}`,
+          {
             method: "PATCH",
             headers: {
-            "Content-Type": "application/json",
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${session.access_token}`,
             },
             body: JSON.stringify({ status }),
-        }
+          }
         );
 
         if (!response.ok) {

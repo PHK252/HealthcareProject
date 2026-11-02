@@ -22,6 +22,55 @@ from sqlalchemy import (
     MetaData, Table, Column, Integer, String, Text,
     DateTime, Float, ForeignKey, Identity, inspect, text
 )
+import jwt
+from fastapi import Depends, HTTPException
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+
+
+load_dotenv(Path(__file__).resolve().parent / ".env")
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+
+if not SUPABASE_URL:
+    raise RuntimeError("SUPABASE_URL is missing from backend/.env")
+
+security = HTTPBearer()
+
+jwks_client = jwt.PyJWKClient(
+    f"{SUPABASE_URL}/auth/v1/.well-known/jwks.json"
+)
+
+
+def verify_token(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+):
+    token = credentials.credentials
+
+    try:
+        signing_key = jwks_client.get_signing_key_from_jwt(token)
+
+        payload = jwt.decode(
+            token,
+            signing_key.key,
+            algorithms=["ES256", "RS256"],
+            audience="authenticated",
+            issuer=f"{SUPABASE_URL}/auth/v1",
+        )
+
+        user_id = payload.get("sub")
+
+        if not user_id or payload.get("role") != "authenticated":
+            raise HTTPException(
+                status_code=401,
+                detail="Unauthorized",
+            )
+
+        return user_id
+
+    except jwt.PyJWTError:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid authentication token",
+        )
 
 
 
@@ -45,7 +94,7 @@ app.add_middleware(
 DATABASE_PATH = Path(__file__).resolve().parent / "carebridge.db"
 
 # Load environment variables before reading configuration
-load_dotenv(Path(__file__).resolve().parent / ".env")
+
 
 # Database configuration
 DATABASE_URL = os.getenv(
@@ -110,6 +159,7 @@ def initialize_database():
             server_default=text("CURRENT_TIMESTAMP"),
         ),
         Column("s3_key", Text),
+        Column("user_id", String, nullable=False),
     )
 
     # Care tasks table
@@ -395,6 +445,7 @@ def identify_task_candidates(pages):
 async def ask_document_question(
     document_id: int,
     request: QuestionRequest,
+    user_id: str = Depends(verify_token),
 ):
     question = request.question.strip()
 
@@ -404,15 +455,18 @@ async def ask_document_question(
             detail="Please enter a question.",
         )
 
-    # Verify that the document exists.
     with engine.connect() as connection:
         result = connection.execute(
             text("""
                 SELECT id
                 FROM documents
                 WHERE id = :document_id
+                AND user_id = :user_id
             """),
-            {"document_id": document_id},
+            {
+                "document_id": document_id,
+                "user_id": user_id,
+            },
         )
 
         document = result.mappings().first()
@@ -427,18 +481,26 @@ async def ask_document_question(
         question=question,
         document_id=document_id,
     )
-@app.delete("/documents/{document_id}")
-async def delete_document(document_id: int):
 
-    # First, retrieve the document's S3 key.
+
+@app.delete("/documents/{document_id}")
+async def delete_document(
+    document_id: int,
+    user_id: str = Depends(verify_token),
+):
+    # Retrieve only a document owned by the authenticated user.
     with engine.connect() as connection:
         result = connection.execute(
             text("""
                 SELECT id, s3_key
                 FROM documents
                 WHERE id = :document_id
+                AND user_id = :user_id
             """),
-            {"document_id": document_id},
+            {
+                "document_id": document_id,
+                "user_id": user_id,
+            },
         )
 
         document = result.mappings().first()
@@ -449,7 +511,7 @@ async def delete_document(document_id: int):
             detail="Document not found.",
         )
 
-    # Delete the original PDF from S3 first.
+    # Delete the original PDF from S3.
     s3_key = document["s3_key"]
 
     if s3_key:
@@ -466,9 +528,8 @@ async def delete_document(document_id: int):
                 detail="Could not delete the original PDF from storage.",
             )
 
-    # Remove associated database records in one transaction.
+    # Remove associated database records.
     with engine.begin() as connection:
-
         connection.execute(
             text("""
                 DELETE FROM care_tasks
@@ -489,8 +550,12 @@ async def delete_document(document_id: int):
             text("""
                 DELETE FROM documents
                 WHERE id = :document_id
+                AND user_id = :user_id
             """),
-            {"document_id": document_id},
+            {
+                "document_id": document_id,
+                "user_id": user_id,
+            },
         )
 
     return {
@@ -499,7 +564,7 @@ async def delete_document(document_id: int):
     }
 
 @app.post("/documents/extract")
-async def extract_document(file: UploadFile = File(...)):
+async def extract_document(file: UploadFile = File(...), user_id: str = Depends(verify_token)):
 
     if file.content_type != "application/pdf":
         raise HTTPException(
@@ -607,13 +672,14 @@ async def extract_document(file: UploadFile = File(...)):
         # Insert document and retrieve its generated ID.
         result = connection.execute(
             text("""
-                INSERT INTO documents (filename, page_count)
-                VALUES (:filename, :page_count)
+                INSERT INTO documents (filename, page_count, user_id)
+                VALUES (:filename, :page_count, :user_id)
                 RETURNING id
             """),
             {
                 "filename": file.filename or "unnamed.pdf",
                 "page_count": len(pages),
+                "user_id": user_id,
             },
         )
 
@@ -726,14 +792,16 @@ async def extract_document(file: UploadFile = File(...)):
     }
 
 @app.get("/documents")
-async def get_documents():
+def get_documents(user_id: str = Depends(verify_token)):
     with engine.connect() as connection:
         result = connection.execute(
             text("""
                 SELECT id, filename, page_count, created_at
                 FROM documents
+                WHERE user_id = :user_id
                 ORDER BY id DESC
-            """)
+            """),
+            {"user_id": user_id},
         )
 
         documents = result.mappings().all()
@@ -746,16 +814,30 @@ async def get_documents():
 # --------------------------------------------------
 
 @app.get("/tasks")
-async def get_tasks():
+def get_tasks(user_id: str = Depends(verify_token)):
     with engine.connect() as connection:
         result = connection.execute(
             text("""
-                SELECT task_id, document_id, suggested_text, source_quote,
-                       page, status, method, completed, category, due_date,
-                       confidence, needs_review
-                FROM care_tasks
-                ORDER BY document_id, page, task_id
-            """)
+            SELECT
+                care_tasks.task_id,
+                care_tasks.document_id,
+                care_tasks.suggested_text,
+                care_tasks.source_quote,
+                care_tasks.page,
+                care_tasks.status,
+                care_tasks.method,
+                care_tasks.category,
+                care_tasks.due_date,
+                care_tasks.confidence,
+                care_tasks.needs_review,
+                care_tasks.completed
+            FROM care_tasks
+            JOIN documents
+                ON care_tasks.document_id = documents.id
+            WHERE documents.user_id = :user_id
+            ORDER BY care_tasks.task_id DESC
+            """),
+            {"user_id": user_id}
         )
 
         tasks = result.mappings().all()
@@ -767,8 +849,11 @@ async def get_tasks():
 # --------------------------------------------------
 
 @app.patch("/tasks/{task_id}")
-def update_task_status(task_id: str, update: TaskStatusUpdate):
-
+def update_task_status(
+    task_id: str,
+    update: TaskStatusUpdate,
+    user_id: str = Depends(verify_token),
+):
     allowed_statuses = {
         "needs_review",
         "confirmed",
@@ -787,15 +872,24 @@ def update_task_status(task_id: str, update: TaskStatusUpdate):
                 UPDATE care_tasks
                 SET status = :status
                 WHERE task_id = :task_id
+                AND document_id IN (
+                    SELECT id
+                    FROM documents
+                    WHERE user_id = :user_id
+                )
             """),
             {
                 "status": update.status,
                 "task_id": task_id,
+                "user_id": user_id,
             },
         )
 
         if result.rowcount == 0:
-            raise HTTPException(status_code=404, detail="Task not found")
+            raise HTTPException(
+                status_code=404,
+                detail="Task not found",
+            )
 
     return {
         "task_id": task_id,
@@ -805,7 +899,8 @@ def update_task_status(task_id: str, update: TaskStatusUpdate):
 @app.patch("/tasks/{task_id}/completion")
 def update_task_completion(
     task_id: str,
-    update: TaskCompletionUpdate
+    update: TaskCompletionUpdate,
+    user_id: str = Depends(verify_token)
 ):
     with engine.begin() as connection:
         result = connection.execute(
@@ -814,10 +909,16 @@ def update_task_completion(
                 SET completed = :completed
                 WHERE task_id = :task_id
                 AND status = 'confirmed'
+                AND document_id IN (
+                    SELECT id
+                    FROM documents
+                    WHERE user_id = :user_id
+                )
             """),
             {
                 "completed": 1 if update.completed else 0,
                 "task_id": task_id,
+                "user_id": user_id,
             },
         )
 
@@ -833,7 +934,7 @@ def update_task_completion(
     }
 
 @app.post("/documents/extract-llm")
-async def extract_document_with_llm(file: UploadFile = File(...)):
+async def extract_document_with_llm(file: UploadFile = File(...), user_id: str = Depends(verify_token)):
     if file.content_type != "application/pdf":
         raise HTTPException(
             status_code=400,

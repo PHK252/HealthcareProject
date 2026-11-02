@@ -1,6 +1,33 @@
 import { useEffect, useState } from "react";
 import "./App.css";
 import DocumentUpload from "./DocumentUpload";
+import { supabase } from "./supabase";
+
+
+async function apiFetch(
+  url: string,
+  options: RequestInit = {}
+) {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session) {
+    throw new Error("You must be signed in.");
+  }
+
+  const headers = new Headers(options.headers);
+
+  headers.set(
+    "Authorization",
+    `Bearer ${session.access_token}`
+  );
+
+  return fetch(url, {
+    ...options,
+    headers,
+  });
+}
 
 type ApiStatus = "checking" | "online" | "offline";
 
@@ -53,9 +80,17 @@ function App() {
   const [askingQuestion, setAskingQuestion] = useState(false);
   const [questionError, setQuestionError] = useState("");
 
+  const [session, setSession] = useState<any>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [authError, setAuthError] = useState("");
+  const [authMessage, setAuthMessage] = useState("");
+
   async function refreshDocuments() {
     try {
-      const response = await fetch("http://localhost:8000/documents");
+      const response = await apiFetch("http://localhost:8000/documents");
       if (!response.ok) throw new Error("Could not load documents.");
 
       const data: DocumentRecord[] = await response.json();
@@ -73,7 +108,7 @@ function App() {
 
   async function refreshTasks() {
     try {
-      const response = await fetch("http://localhost:8000/tasks");
+      const response = await apiFetch("http://localhost:8000/tasks");
       if (!response.ok) throw new Error("Could not load tasks.");
 
       const tasks = await response.json();
@@ -84,7 +119,24 @@ function App() {
   }
 
   useEffect(() => {
-    
+  supabase.auth.getSession().then(({ data }) => {
+    setSession(data.session);
+    setAuthLoading(false);
+  });
+
+  const {
+    data: { subscription },
+  } = supabase.auth.onAuthStateChange((_event, session) => {
+    setSession(session);
+    setAuthLoading(false);
+  });
+
+  return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!session) return;
+
     fetch("http://localhost:8000/health")
       .then((response) => {
         if (!response.ok) throw new Error("API request failed");
@@ -94,9 +146,10 @@ function App() {
         setApiStatus(data.status === "ok" ? "online" : "offline");
       })
       .catch(() => setApiStatus("offline"));
-      refreshDocuments();
-      refreshTasks();
-  }, []);
+
+    refreshDocuments();
+    refreshTasks();
+  }, [session]);
 
   const pendingCount = candidates.filter(
     (task) => task.status === "needs_review"
@@ -165,7 +218,7 @@ function App() {
     status: "confirmed" | "rejected"
   ) {
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         `http://localhost:8000/tasks/${taskId}`,
         {
           method: "PATCH",
@@ -199,7 +252,7 @@ function App() {
   completed: boolean
   ) {
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         `http://localhost:8000/tasks/${taskId}/completion`,
         {
           method: "PATCH",
@@ -235,7 +288,7 @@ function App() {
     setQuestionResult(null);
 
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         `http://localhost:8000/documents/${selectedDocumentId}/ask`,
         {
           method: "POST",
@@ -280,7 +333,7 @@ function App() {
     if (!confirmed) return;
 
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         `http://localhost:8000/documents/${documentId}`,
         { method: "DELETE" }
       );
@@ -316,6 +369,92 @@ function App() {
     }
   }
 
+
+  async function handleAuthSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    setAuthError("");
+    setAuthMessage("");
+
+    const { error } =
+      authMode === "signup"
+        ? await supabase.auth.signUp({ email, password })
+        : await supabase.auth.signInWithPassword({ email, password });
+
+    if (error) {
+      setAuthError(error.message);
+      return;
+    }
+
+    if (authMode === "signup") {
+      setAuthMessage("Account created. Check your email if confirmation is required.");
+    }
+  }
+
+  async function handleSignOut() {
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      setAuthError(error.message);
+    }
+  }
+
+  if (authLoading) {
+    return <div className="auth-screen">Loading CareBridge...</div>;
+  }
+
+  if (!session) {
+    return (
+      <div className="auth-screen">
+        <form className="auth-card" onSubmit={handleAuthSubmit}>
+          <h1>CareBridge</h1>
+          <p>Your care, organized.</p>
+
+          <h2>{authMode === "signin" ? "Welcome back" : "Create your account"}</h2>
+
+          <label htmlFor="auth-email">Email</label>
+          <input
+            id="auth-email"
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            required
+          />
+
+          <label htmlFor="auth-password">Password</label>
+          <input
+            id="auth-password"
+            type="password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            required
+            minLength={6}
+          />
+
+          {authError && <p className="upload-error">{authError}</p>}
+          {authMessage && <p>{authMessage}</p>}
+
+          <button type="submit">
+            {authMode === "signin" ? "Sign in" : "Create account"}
+          </button>
+
+          <button
+            type="button"
+            className="auth-switch"
+            onClick={() => {
+              setAuthMode(authMode === "signin" ? "signup" : "signin");
+              setAuthError("");
+              setAuthMessage("");
+            }}
+          >
+            {authMode === "signin"
+              ? "Need an account? Sign up"
+              : "Already have an account? Sign in"}
+          </button>
+        </form>
+      </div>
+    );
+  }
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -346,7 +485,9 @@ function App() {
       <main className="main-content" id="dashboard">
         <header className="topbar">
           <span>Patient workspace</span>
-          <span className="avatar">P</span>
+          <button type="button" onClick={handleSignOut}>
+            Sign out
+          </button>
         </header>
 
         <section className="welcome">
