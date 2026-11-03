@@ -25,9 +25,18 @@ from sqlalchemy import (
 import jwt
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from groq import AsyncGroq
 
 
 load_dotenv(Path(__file__).resolve().parent / ".env")
+
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+
+if not GROQ_API_KEY:
+    raise RuntimeError("GROQ_API_KEY is missing from backend/.env")
+
+groq_client = AsyncGroq(api_key=GROQ_API_KEY)
+
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 
 if not SUPABASE_URL:
@@ -76,12 +85,19 @@ def verify_token(
 
 app = FastAPI(title="CareBridge API")
 
+FRONTEND_URL = os.getenv("FRONTEND_URL")
+
+allowed_origins = [
+    "http://localhost:5173",
+    "http://localhost:5174",
+]
+
+if FRONTEND_URL:
+    allowed_origins.append(FRONTEND_URL.rstrip("/"))
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:5174",
-    ],
+    allow_origins=allowed_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -284,7 +300,7 @@ class CareTaskExtraction(BaseModel):
     tasks: list[CareTaskCandidate]
 
 
-async def extract_tasks_with_ollama(pages: list[dict]) -> dict:
+async def extract_tasks_with_groq(pages: list[dict]) -> dict:
     verified_tasks = []
     rejected_tasks = []
 
@@ -325,32 +341,50 @@ Rules:
 TEXT:
 {page_text}
 """
+            schema = CareTaskExtraction.model_json_schema()
 
-            response = await client.post(
-                "http://localhost:11434/api/chat",
-                json={
-                    "model": "llama3.2",
-                    "messages": [
-                        {
-                            "role": "system",
-                            "content": (
-                                "You are a precise extraction system. "
-                                "Return only JSON matching the supplied schema."
-                            ),
-                        },
-                        {"role": "user", "content": prompt},
-                    ],
-                    "format": CareTaskExtraction.model_json_schema(),
-                    "stream": False,
-                    "options": {"temperature": 0},
+            def make_groq_compatible(obj):
+                if isinstance(obj, dict):
+                    if obj.get("type") == "object":
+                        obj["additionalProperties"] = False
+                        properties = obj.get("properties", {})
+                        obj["required"] = list(properties.keys())
+
+                    for value in obj.values():
+                        make_groq_compatible(value)
+
+                elif isinstance(obj, list):
+                    for value in obj:
+                        make_groq_compatible(value)
+
+            make_groq_compatible(schema)
+
+            response = await groq_client.chat.completions.create(
+                model="openai/gpt-oss-120b",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are a precise extraction system. "
+                            "Return only JSON matching the supplied schema."
+                        ),
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                response_format={
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "care_task_extraction",
+                        "strict": True,
+                        "schema": schema,
+                    },
                 },
+                temperature=0,
             )
 
-            response.raise_for_status()
+            response_content = response.choices[0].message.content
 
-            content = response.json()["message"]["content"]
-
-            extraction = CareTaskExtraction.model_validate_json(content)
+            extraction = CareTaskExtraction.model_validate_json(response_content)
 
             for task in extraction.tasks:
 
@@ -618,7 +652,7 @@ async def extract_document(file: UploadFile = File(...), user_id: str = Depends(
     extraction_warning = None
 
     try:
-        llm_result = await extract_tasks_with_ollama(pages)
+        llm_result = await extract_tasks_with_groq(pages)
 
         task_candidates = []
 
@@ -629,7 +663,7 @@ async def extract_document(file: UploadFile = File(...), user_id: str = Depends(
                 "source_quote": task["source_quote"],
                 "page": task["page"],
                 "status": "needs_review",
-                "method": "ollama_llama3.2",
+                "method": "groq_gpt_oss_120b",
                 "completed": False,
                 "category": task["category"],
                 "due_date": task["due_date"],
@@ -637,10 +671,10 @@ async def extract_document(file: UploadFile = File(...), user_id: str = Depends(
                 "needs_review": True,
             })
 
-        extraction_method = "ollama_llama3.2"
+        extraction_method = "groq_gpt_oss_120b"
 
     except Exception as error:
-        print(f"Ollama extraction failed: {error}")
+        print(f"Groq extraction failed: {error}")
 
         extraction_warning = (
             "LLM extraction was unavailable. "
@@ -969,7 +1003,7 @@ async def extract_document_with_llm(file: UploadFile = File(...), user_id: str =
         )
 
     try:
-        extraction = await extract_tasks_with_ollama(pages)
+        extraction = await extract_tasks_with_groq(pages)
     except Exception as error:
         raise HTTPException(
             status_code=502,
@@ -979,7 +1013,7 @@ async def extract_document_with_llm(file: UploadFile = File(...), user_id: str =
     return {
         "filename": file.filename,
         "page_count": len(pages),
-        "method": "ollama_llama3.2",
+        "method": "groq_gpt_oss_120b",
         **extraction,
     }
 
@@ -1226,40 +1260,31 @@ USER QUESTION:
 """
 
     try:
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            response = await client.post(
-                "http://localhost:11434/api/chat",
-                json={
-                    "model": "llama3.2",
-                    "messages": [
-                        {
-                            "role": "system",
-                            "content": (
-                                "You answer questions using only "
-                                "provided document evidence."
-                            ),
-                        },
-                        {
-                            "role": "user",
-                            "content": prompt,
-                        },
-                    ],
-                    "stream": False,
-                    "options": {
-                        "temperature": 0,
-                    },
+        response = await groq_client.chat.completions.create(
+            model="openai/gpt-oss-120b",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You answer questions using only "
+                        "provided document evidence."
+                    ),
                 },
-            )
+                {
+                    "role": "user",
+                    "content": prompt,
+                },
+            ],
+            temperature=0,
+        )
 
-            response.raise_for_status()
-
-            answer = response.json()["message"]["content"]
+        answer = response.choices[0].message.content or ""
 
     except Exception as error:
-        print(f"RAG answer generation failed: {error}")
+        print(f"Groq RAG answer generation failed: {error}")
         raise HTTPException(
             status_code=503,
-            detail="The local language model is unavailable.",
+            detail="The language model service is unavailable.",
         )
 
     sources = [
