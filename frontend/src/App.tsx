@@ -3,6 +3,8 @@ import "./App.css";
 import DocumentUpload from "./DocumentUpload";
 import { supabase } from "./supabase";
 
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+
 
 async function apiFetch(
   url: string,
@@ -90,7 +92,7 @@ function App() {
 
   async function refreshDocuments() {
     try {
-      const response = await apiFetch("http://localhost:8000/documents");
+      const response = await apiFetch(`${API_URL}/documents`);
       if (!response.ok) throw new Error("Could not load documents.");
 
       const data: DocumentRecord[] = await response.json();
@@ -108,7 +110,7 @@ function App() {
 
   async function refreshTasks() {
     try {
-      const response = await apiFetch("http://localhost:8000/tasks");
+      const response = await apiFetch(`${API_URL}/tasks`);
       if (!response.ok) throw new Error("Could not load tasks.");
 
       const tasks = await response.json();
@@ -137,7 +139,7 @@ function App() {
   useEffect(() => {
     if (!session) return;
 
-    fetch("http://localhost:8000/health")
+    fetch(`${API_URL}/health`)
       .then((response) => {
         if (!response.ok) throw new Error("API request failed");
         return response.json();
@@ -219,7 +221,7 @@ function App() {
   ) {
     try {
       const response = await apiFetch(
-        `http://localhost:8000/tasks/${taskId}`,
+        `${API_URL}/tasks/${taskId}`,
         {
           method: "PATCH",
           headers: {
@@ -253,7 +255,7 @@ function App() {
   ) {
     try {
       const response = await apiFetch(
-        `http://localhost:8000/tasks/${taskId}/completion`,
+        `${API_URL}/tasks/${taskId}/completion`,
         {
           method: "PATCH",
           headers: {
@@ -289,7 +291,7 @@ function App() {
 
     try {
       const response = await apiFetch(
-        `http://localhost:8000/documents/${selectedDocumentId}/ask`,
+        `${API_URL}/documents/${selectedDocumentId}/ask`,
         {
           method: "POST",
           headers: {
@@ -334,7 +336,7 @@ function App() {
 
     try {
       const response = await apiFetch(
-        `http://localhost:8000/documents/${documentId}`,
+        `${API_URL}/documents/${documentId}`,
         { method: "DELETE" }
       );
 
