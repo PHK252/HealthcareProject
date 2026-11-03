@@ -70,7 +70,7 @@ export default function DocumentUpload({candidates, onCandidatesChange, onDocume
       }
 
       const response = await fetch(
-        "${API_URL}/documents/extract",
+        `${API_URL}/documents/extract`,
         {
           method: "POST",
           headers: {
@@ -91,7 +91,7 @@ export default function DocumentUpload({candidates, onCandidatesChange, onDocume
       setResult(extracted);
 
     // Retrieve ALL saved tasks, including those from earlier uploads.
-      const tasksResponse = await fetch("${API_URL}/tasks", {
+      const tasksResponse = await fetch(`${API_URL}/tasks`, {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
         },
