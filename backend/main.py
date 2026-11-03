@@ -674,7 +674,9 @@ async def extract_document(file: UploadFile = File(...), user_id: str = Depends(
         extraction_method = "groq_gpt_oss_120b"
 
     except Exception as error:
-        print(f"Groq extraction failed: {error}")
+        import traceback
+        print(f"Groq extraction failed: {type(error).__name__}: {error}", flush=True)
+        traceback.print_exc()
 
         extraction_warning = (
             "LLM extraction was unavailable. "
