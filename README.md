@@ -8,6 +8,8 @@ The purpose of CareBridge is to help patients navigate the growing number of hea
 Architecture:
 CareBridge uses a full-stack architecture combining a React frontend, Python backend, cloud storage, database persistence, authentication, and LLM-powered document processing.
 
+<img width="2040" height="1032" alt="mermaid-diagram" src="https://github.com/user-attachments/assets/413b7f3e-666e-4b89-ad95-95f431ae4148" />
+
 Frontend:
 React + TypeScript — Provides the user interface for uploading documents, reviewing extracted tasks, managing a care checklist, and asking questions.
 
@@ -65,6 +67,8 @@ Store documents in private AWS S3 storage.
 
 Persist document metadata in PostgreSQL.
 
+<img width="1484" height="757" alt="dashboard" src="https://github.com/user-attachments/assets/ddbb13c4-130f-4b39-81dd-823c9eec87fe" />
+
 2. AI-Powered Task Extraction
 
 Use GPT-OSS 120B to identify potentially actionable instructions in healthcare documents.
@@ -83,6 +87,8 @@ Confirm or reject individual suggestions.
 
 Inspect the original document passage associated with each suggestion.
 
+<img width="1462" height="755" alt="review_tasks" src="https://github.com/user-attachments/assets/7232af58-2be2-44a7-9a1a-61e375a81edf" />
+
 4. Care Checklist
 
 View confirmed tasks organized by document and category.
@@ -92,6 +98,8 @@ Track task completion.
 View overall checklist progress.
 
 Keep extracted instructions accessible in one place.
+
+<img width="1466" height="716" alt="checklist" src="https://github.com/user-attachments/assets/67e0f47e-257e-430c-8484-911b65f343d7" />
 
 5. Document Question Answering
 
@@ -103,7 +111,11 @@ Generate contextual answers using GPT-OSS 120B.
 
 Display supporting passages and page references so users can verify the response against the original document.
 
+<img width="1459" height="750" alt="rag" src="https://github.com/user-attachments/assets/2b2111a0-269a-4e01-86fc-2849bc8551f8" />
+
 6. User Authentication and Data Isolation
+
+<img width="574" height="670" alt="Screenshot 2026-11-08 at 10 01 55 PM" src="https://github.com/user-attachments/assets/a41a4ed5-4b11-4dd1-8c94-5dfd6b6c9aec" />
 
 Create an account and sign in using Supabase Auth.
 
