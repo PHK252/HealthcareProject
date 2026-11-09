@@ -89,6 +89,7 @@ function App() {
   const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState("");
   const [authMessage, setAuthMessage] = useState("");
+  const [activeSection, setActiveSection] = useState("dashboard");
 
   async function refreshDocuments() {
     try {
@@ -314,7 +315,7 @@ function App() {
       setQuestionError(
         error instanceof Error
           ? error.message
-          : "Could not connect to CareBridge."
+          : "Could not connect."
       );
     } finally {
       setAskingQuestion(false);
@@ -401,15 +402,15 @@ function App() {
   }
 
   if (authLoading) {
-    return <div className="auth-screen">Loading CareBridge...</div>;
+    return <div className="auth-screen">Loading...</div>;
   }
 
   if (!session) {
     return (
       <div className="auth-screen">
         <form className="auth-card" onSubmit={handleAuthSubmit}>
-          <h1>CareBridge</h1>
-          <p>Your care, organized.</p>
+          <h1>Healthcare Document Processor</h1>
+          <p>*this is a demo, not intended for real use*</p>
 
           <h2>{authMode === "signin" ? "Welcome back" : "Create your account"}</h2>
 
@@ -467,9 +468,30 @@ function App() {
 
         <p className="nav-label">YOUR HEALTH</p>
         <nav>
-          <a className="nav-item active" href="#dashboard">Dashboard</a>
-          <a className="nav-item" href="#documents">My documents</a>
-          <a className="nav-item" href="#tasks">Care checklist</a>
+            <a
+              className={`nav-item ${activeSection === "dashboard" ? "active" : ""}`}
+              href="#dashboard"
+              onClick={() => setActiveSection("dashboard")}
+            >
+              Dashboard
+            </a>
+
+            <a
+              className={`nav-item ${activeSection === "documents" ? "active" : ""}`}
+              href="#documents"
+              onClick={() => setActiveSection("documents")}
+            >
+              My documents
+            </a>
+
+            <a
+              className={`nav-item ${activeSection === "tasks" ? "active" : ""}`}
+              href="#tasks"
+              onClick={() => setActiveSection("tasks")}
+            >
+              Care checklist
+            </a>
+
         </nav>
 
         <div className="sidebar-footer">
@@ -493,11 +515,11 @@ function App() {
         </header>
 
         <section className="welcome">
-          <p className="eyebrow">YOUR CARE, ORGANIZED</p>
-          <h1>Welcome to CareBridge</h1>
+          <p className="eyebrow"></p>
+          <h1>Healthcare Document Processor (Protoype)</h1>
           <p>
-            Keep your discharge instructions, follow-ups, and next steps
-            in one place.
+            Manage your documents, review care instructions, and keep track
+            of your next steps.
           </p>
         </section>
 
@@ -506,21 +528,21 @@ function App() {
             <span className="stat-icon">▤</span>
             <p>Documents</p>
             <h2>{documentCount}</h2>
-            <span className="muted">Uploaded this session</span>
+            <span className="muted"></span>
           </article>
 
           <article className="stat-card">
             <span className="stat-icon">✓</span>
-            <p>Needs review</p>
+            <p>Tasks Pending Review</p>
             <h2>{pendingCount}</h2>
-            <span className="muted">Suggested care tasks</span>
+            <span className="muted"></span>
           </article>
 
           <article className="stat-card">
             <span className="stat-icon">↗</span>
-            <p>Confirmed</p>
+            <p>Confirmed Tasks</p>
             <h2>{confirmedTasks.length}</h2>
-            <span className="muted">Reviewed care tasks</span>
+            <span className="muted"></span>
           </article>
         </section>
 
@@ -528,12 +550,11 @@ function App() {
           <div className="section-heading">
             <div>
               <h2>Your documents</h2>
-              <p>Start with your discharge paperwork.</p>
             </div>
             <span className="pill">PDF or image</span>
           </div>
 
-          <div className="upload-area">
+          <div className="document-upload-container">
             <DocumentUpload
               candidates={candidates}
               onCandidatesChange={setCandidates}
@@ -641,10 +662,7 @@ function App() {
         <section className="panel" id="questions">
           <div className="section-heading">
             <div>
-              <h2>Ask your documents</h2>
-              <p>
-                Ask questions about your uploaded discharge instructions.
-              </p>
+              <h2>Do you have any questions?</h2>
             </div>
             <span className="pill">AI assistant</span>
           </div>
@@ -662,7 +680,7 @@ function App() {
 
               <select
                 id="question-document"
-                value={selectedDocumentId}
+                value={selectedDocumentId || String(documents[0].id)}
                 onChange={(event) => {
                   setSelectedDocumentId(event.target.value);
                   setQuestionResult(null);
@@ -670,7 +688,7 @@ function App() {
                 }}
               >
                 {documents.map((document) => (
-                  <option key={document.id} value={document.id}>
+                  <option key={document.id} value={String(document.id)}>
                     {document.filename}
                   </option>
                 ))}
@@ -737,8 +755,7 @@ function App() {
         <section className="panel" id="tasks">
           <div className="section-heading">
             <div>
-              <h2>Your care checklist</h2>
-              <p>Tasks you have reviewed and confirmed.</p>
+              <h2>Next Steps Checklist</h2>
             </div>
             <span className="pill">
               {confirmedTasks.length} tasks
@@ -854,7 +871,7 @@ function App() {
         </section>
 
         <footer>
-          CareBridge is a prototype, not a substitute for professional
+          This is a prototype, not a substitute for professional
           medical advice.
         </footer>
       </main>

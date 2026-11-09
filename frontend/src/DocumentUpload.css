@@ -1,34 +1,224 @@
-.secondary-button {
-  margin-left: 8px;
-  background: #edf2f7 !important;
-  color: #243447 !important;
+/* ========================================
+   CAREBRIDGE — DOCUMENT UPLOAD
+   ======================================== */
+
+.document-upload-container,
+.document-upload {
+  width: 100%;
+  min-width: 0;
 }
 
-.task-review {
-  margin-top: 28px;
-  border-top: 1px solid #dce3eb;
-  padding-top: 20px;
+.document-upload {
+  color: #263a35;
+  text-align: left;
 }
+
+/* Upload introduction */
+
+.upload-intro h2 {
+  margin: 0 0 6px;
+  color: #263a35;
+  font-size: 19px;
+  font-weight: 650;
+}
+
+.upload-intro p {
+  margin: 0 0 20px;
+  color: #82918b;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* Upload controls */
+
+.upload-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 18px;
+  width: 100%;
+  min-height: 125px;
+  padding: 24px;
+  background: #f9fbfa;
+  border: 1px dashed #bfd4ca;
+  border-radius: 9px;
+}
+
+.upload-controls input[type="file"] {
+  max-width: 100%;
+  color: #64756e;
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.upload-controls input[type="file"]::file-selector-button {
+  padding: 9px 13px;
+  margin-right: 10px;
+  border: 1px solid #dce6e0;
+  border-radius: 6px;
+  background: white;
+  color: #344a42;
+  font: inherit;
+  cursor: pointer;
+}
+
+.upload-controls button {
+  padding: 12px 20px;
+  border: none;
+  border-radius: 7px;
+  background: #176d60;
+  color: white;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.upload-controls button:hover:not(:disabled) {
+  background: #12594e;
+}
+
+.upload-controls button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Extraction result */
+
+.extraction-result {
+  width: 100%;
+  min-width: 0;
+  margin-top: 22px;
+  padding: 22px 24px;
+  border: 1px solid #e1eae5;
+  border-radius: 10px;
+  background: #fff;
+  text-align: left;
+}
+
+.extraction-result h3 {
+  margin: 0 0 13px;
+  color: #2b4039;
+  font-size: 17px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.extraction-result p {
+  margin: 5px 0;
+  color: #788984;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* View extracted text button */
+
+.document-upload .secondary-button {
+  margin: 10px 0 0;
+  padding: 10px 15px;
+  border: 1px solid #dce6e1;
+  border-radius: 7px;
+  background: #f2f6f4;
+  color: #34564c;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.document-upload .secondary-button:hover {
+  background: #e8f1ec;
+}
+
+/* Extracted PDF text */
+
+.extracted-page {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin-top: 20px;
+  overflow: hidden;
+  text-align: left;
+}
+
+.extracted-page h4 {
+  margin-bottom: 10px;
+  color: #344a42;
+  font-size: 14px;
+}
+
+.extracted-page pre {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 18px;
+  overflow-x: auto;
+  background: #f7faf8;
+  border: 1px solid #e5ece8;
+  border-radius: 8px;
+  color: #344a42;
+  font-size: 12px;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  text-align: left;
+}
+
+/* Care task review */
+
+.task-review {
+  width: 100%;
+  margin-top: 28px;
+  padding-top: 25px;
+  border-top: 1px solid #e3eae6;
+  text-align: left;
+}
+
+.task-review h3 {
+  margin-bottom: 9px;
+  color: #293f38;
+  font-size: 19px;
+}
+
+.task-review > p {
+  color: #82918b;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* Review counts */
 
 .review-counts {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin: 16px 0;
-  font-size: 13px;
+  gap: 9px;
+  margin: 18px 0;
 }
 
 .review-counts span {
-  padding: 7px 10px;
+  padding: 8px 12px;
+  border: 1px solid #e5ebe7;
   border-radius: 7px;
-  background: #f0f4f8;
+  background: #f5f8f6;
+  color: #53665e;
+  font-size: 12px;
 }
 
+/* Suggested task cards */
+
 .candidate-card {
-  padding: 16px;
+  width: 100%;
+  box-sizing: border-box;
   margin: 14px 0;
-  border: 1px solid #dce3eb;
+  padding: 22px 24px;
+  border: 1px solid #e2eae5;
   border-radius: 10px;
+  background: #fff;
+  text-align: left;
 }
 
 .candidate-heading {
@@ -36,14 +226,23 @@
   justify-content: space-between;
   align-items: center;
   gap: 12px;
+  margin-bottom: 12px;
+}
+
+.candidate-heading strong {
+  color: #344a42;
+  font-size: 15px;
+  text-transform: capitalize;
 }
 
 .task-status {
-  padding: 5px 8px;
+  flex-shrink: 0;
+  padding: 5px 9px;
   border-radius: 6px;
+  background: #f0f4f8;
+  color: #53665e;
   font-size: 12px;
   text-transform: capitalize;
-  background: #f0f4f8;
 }
 
 .task-status.confirmed {
@@ -57,53 +256,147 @@
 }
 
 .candidate-text {
-  line-height: 1.6;
+  margin: 0 0 15px;
+  color: #40534c;
+  font-size: 14px;
+  line-height: 1.7;
 }
 
-.source-evidence {
-  margin-top: 14px;
-  padding: 12px;
-  background: #f6f8fa;
-  border-radius: 8px;
-  font-size: 13px;
-}
-
-.source-evidence blockquote {
-  margin: 8px 0 0;
-  padding-left: 12px;
-  border-left: 3px solid #9aafc5;
-  line-height: 1.6;
-}
-
-.candidate-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 14px;
-}
-
-.candidate-actions button {
-  margin: 0;
-}
-
-.candidate-actions button:disabled {
-  opacity: 0.55;
-  cursor: default;
-}
+/* Metadata */
 
 .candidate-metadata {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 16px;
-  margin: 12px 0;
-  font-size: 0.85rem;
-  color: #64748b;
+  gap: 8px 18px;
+  margin: 14px 0;
+  color: #71827c;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .candidate-metadata span {
   display: inline-block;
 }
 
-.candidate-heading strong {
-  text-transform: capitalize;
+.task-due-date {
+  color: #64756e;
+  font-size: 13px;
+}
+
+/* Source evidence */
+
+.source-evidence {
+  margin-top: 16px;
+  padding: 15px 16px;
+  border: 1px solid #e5ece8;
+  border-radius: 8px;
+  background: #f7faf8;
+  color: #40534c;
+  font-size: 13px;
+}
+
+.source-evidence > strong {
+  color: #34564c;
+  font-size: 12px;
+}
+
+.source-evidence blockquote {
+  margin: 10px 0 0;
+  padding: 2px 0 2px 13px;
+  border-left: 3px solid #9abeb0;
+  color: #64756e;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+/* Confirm and reject buttons */
+
+.candidate-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.candidate-actions button {
+  appearance: none;
+  -webkit-appearance: none;
+  min-width: 105px;
+  margin: 0;
+  padding: 10px 18px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: none;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.15s ease;
+}
+
+/* Confirm */
+
+.candidate-actions button:first-child {
+  background: #176d60;
+  color: #fff;
+  border-color: #176d60;
+}
+
+.candidate-actions button:first-child:hover:not(:disabled) {
+  background: #12594e;
+  border-color: #12594e;
+  transform: translateY(-1px);
+}
+
+/* Reject */
+
+.candidate-actions button.reject-button {
+  background: #fff;
+  color: #a13d38;
+  border-color: #e8c9c5;
+}
+
+.candidate-actions button.reject-button:hover:not(:disabled) {
+  background: #fdf0ef;
+  border-color: #e4b9b4;
+  transform: translateY(-1px);
+}
+
+/* Disabled buttons */
+
+.candidate-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Mobile */
+
+@media (max-width: 600px) {
+  .upload-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .upload-controls button {
+    width: 100%;
+  }
+
+  .extraction-result,
+  .candidate-card {
+    padding: 15px;
+  }
+
+  .candidate-heading {
+    align-items: flex-start;
+  }
+
+  .candidate-metadata {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .candidate-actions button {
+    flex: 1;
+  }
 }

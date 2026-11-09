@@ -246,15 +246,14 @@ h1 {
 }
 
 .upload-area {
-  margin-top: 23px;
-  padding: 36px 20px;
-  text-align: center;
-  border: 1px dashed #bfd4cc;
-  border-radius: 12px;
-  background: #fbfdfc;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  display: block;
+  width: 100%;
+  margin-top: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  text-align: left;
 }
 
 .upload-icon {
@@ -520,4 +519,743 @@ footer {
   padding-left: 12px;
   border-left: 3px solid #cbd5e1;
   color: #475569;
+}
+
+/* ========================================
+   CAREBRIDGE — VISUAL POLISH
+   ======================================== */
+
+:root {
+  color: #243b37;
+  background: #f6f8f7;
+}
+
+body {
+  color: #243b37;
+  background: #f6f8f7;
+}
+
+/* ========================================
+   CAREBRIDGE — AUTHENTICATION PAGE
+   ======================================== */
+
+.auth-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 20px;
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(
+      ellipse at 15% 20%,
+      rgba(196, 220, 207, 0.35),
+      transparent 45%
+    ),
+    radial-gradient(
+      ellipse at 85% 85%,
+      rgba(206, 224, 214, 0.35),
+      transparent 45%
+    ),
+    #f1f5f2;
+}
+
+.auth-card {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 440px;
+  padding: 38px 42px;
+  background: #ffffff;
+  border: 1px solid #e3eae6;
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(31, 58, 49, 0.06);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Branding */
+
+.auth-card h1 {
+  color: #176d60;
+  font-family: "Manrope", sans-serif;
+  font-size: 29px;
+  font-weight: 800;
+  letter-spacing: -1px;
+  text-align: center;
+  margin: 0 0 4px;
+}
+
+.auth-card > p:first-of-type {
+  color: #71827c;
+  font-size: 14px;
+  text-align: center;
+  margin: 0 0 32px;
+}
+
+/* Welcome heading */
+
+.auth-card h2 {
+  color: #263a35;
+  font-family: "Manrope", sans-serif;
+  font-size: 21px;
+  font-weight: 600;
+  text-align: center;
+  margin: 0 0 26px;
+}
+
+/* Form fields */
+
+.auth-card form {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.auth-card label {
+  color: #40534c;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 7px;
+}
+
+.auth-card input {
+  width: 100%;
+  padding: 12px 13px;
+  margin: 0 0 19px;
+  border: 1px solid #dce5df;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #243b37;
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.auth-card input:focus {
+  border-color: #398b78;
+  box-shadow: 0 0 0 3px rgba(57, 139, 120, 0.12);
+}
+
+/* Primary button */
+
+.auth-card button[type="submit"] {
+  width: 100%;
+  padding: 13px;
+  margin-top: 5px;
+  border: none;
+  border-radius: 7px;
+  background: #176d60;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.auth-card button[type="submit"]:hover {
+  background: #12594e;
+}
+
+/* Sign-up / sign-in switch */
+
+.auth-switch {
+  width: 100%;
+  margin: 17px 0 0;
+  padding: 8px;
+  border: none;
+  background: transparent;
+  color: #397d70;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.auth-switch:hover {
+  color: #12594e;
+  text-decoration: underline;
+}
+
+/* Error message */
+
+.auth-card .upload-error {
+  color: #b44343;
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0 0 12px;
+}
+
+/* Mobile */
+
+@media (max-width: 480px) {
+  .auth-card {
+    padding: 30px 24px;
+  }
+
+  .auth-card h1 {
+    font-size: 26px;
+  }
+}
+
+/* ---------- Dashboard contrast ---------- */
+
+.welcome h1 {
+  color: #263a35;
+}
+
+.welcome > p:last-child {
+  color: #71827c;
+}
+
+.section-heading h2 {
+  color: #263a35;
+}
+
+.stat-card h2 {
+  color: #263a35;
+}
+
+.panel {
+  box-shadow: 0 2px 8px rgba(31, 58, 49, 0.025);
+}
+
+/* ---------- Buttons ---------- */
+
+button {
+  transition: background 0.2s, border-color 0.2s, transform 0.15s;
+}
+
+button:not(:disabled) {
+  cursor: pointer;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 3px solid rgba(57, 139, 120, 0.25);
+  outline-offset: 2px;
+}
+
+/* ---------- Mobile authentication ---------- */
+
+@media (max-width: 480px) {
+  .auth-card {
+    padding: 30px 24px;
+  }
+
+  .auth-card h1 {
+    font-size: 26px;
+  }
+}
+
+html,
+body {
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
+  background: #e4eee8;
+}
+
+
+/* ========================================
+   CAREBRIDGE — DASHBOARD POLISH
+   ======================================== */
+
+/* Main workspace */
+.main-content {
+  max-width: 1500px;
+  margin-left: 245px;
+  padding: 0 56px 48px;
+  background: #f6f8f7;
+}
+
+/* Top navigation */
+.topbar {
+  height: 68px;
+  border-bottom: 1px solid #e5ebe7;
+  margin-bottom: 8px;
+}
+
+/* Welcome section */
+.welcome {
+  padding: 34px 0 24px;
+}
+
+.welcome .eyebrow {
+  margin-bottom: 9px;
+}
+
+.welcome h1 {
+  color: #263a35;
+  font-size: 30px;
+  letter-spacing: -0.8px;
+  margin-bottom: 7px;
+}
+
+.welcome > p:last-child {
+  color: #788984;
+  font-size: 14px;
+  margin-bottom: 0;
+}
+
+/* Summary statistics */
+.stats-grid {
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  position: relative;
+  padding: 19px 21px;
+  min-height: 150px;
+  border-radius: 11px;
+  box-shadow: 0 2px 7px rgba(31, 58, 49, 0.025);
+}
+
+.stat-icon {
+  width: 34px;
+  height: 34px;
+  font-size: 17px;
+}
+
+.stat-card > p {
+  margin: 13px 0 4px;
+  font-size: 12px;
+  color: #71827c;
+}
+
+.stat-card h2 {
+  color: #263a35;
+  font-size: 27px;
+  margin: 0 0 3px;
+}
+
+.stat-card .muted {
+  color: #8a9993;
+  font-size: 11px;
+}
+
+/* General content panels */
+.panel {
+  padding: 24px;
+  margin-bottom: 20px;
+  border-radius: 11px;
+  box-shadow: 0 2px 7px rgba(31, 58, 49, 0.025);
+}
+
+.section-heading {
+  align-items: center;
+}
+
+.section-heading h2 {
+  color: #263a35;
+  font-size: 18px;
+  margin-bottom: 5px;
+}
+
+.section-heading p {
+  color: #82908a;
+  font-size: 13px;
+}
+
+/* Document upload area */
+.upload-area {
+  margin-top: 20px;
+  padding: 32px 24px;
+  border: 1px dashed #b8cec3;
+  border-radius: 9px;
+  background: #f9fbfa;
+}
+
+.upload-area h3 {
+  color: #2c4039;
+  font-size: 16px;
+  margin-bottom: 7px;
+}
+
+.upload-area p {
+  color: #82908a;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.upload-area button {
+  padding: 11px 18px;
+  border-radius: 7px;
+  background: #176d60;
+  font-size: 13px;
+}
+
+.upload-area button:hover:not(:disabled) {
+  background: #12594e;
+}
+
+/* Sidebar refinements */
+.sidebar {
+  padding: 27px 18px;
+}
+
+.brand {
+  margin-bottom: 48px;
+}
+
+.nav-item {
+  padding: 12px 13px;
+  border-radius: 8px;
+  transition: background 0.2s, color 0.2s;
+}
+
+.nav-item:not(.active):hover {
+  background: #f3f7f5;
+  color: #176d60;
+}
+
+/* Responsive layout */
+@media (max-width: 1100px) {
+  .main-content {
+    padding-left: 32px;
+    padding-right: 32px;
+  }
+}
+
+@media (max-width: 850px) {
+  .main-content {
+    padding: 0 20px 30px;
+  }
+
+  .welcome {
+    padding-top: 26px;
+  }
+}
+
+@media (max-width: 560px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .panel {
+    padding: 18px;
+  }
+
+  .section-heading {
+    align-items: flex-start;
+  }
+}
+
+/* Upload section refinements */
+
+.upload-area {
+  margin-top: 22px;
+  padding: 38px 24px;
+  background: #fbfcfb;
+  border: 1px dashed #b8cec3;
+}
+
+.upload-area h3 {
+  color: #263a35 !important;
+  font-size: 17px;
+  font-weight: 700;
+  opacity: 1;
+  margin-bottom: 10px;
+}
+
+.upload-area p {
+  color: #71827c;
+  font-size: 13px;
+}
+
+/* Improve document section separation */
+.upload-area + h2,
+.upload-area + h3 {
+  margin-top: 28px;
+  padding-top: 4px;
+  color: #263a35;
+}
+
+/* Improve document names */
+.document-list h3,
+.uploaded-documents h3 {
+  color: #263a35;
+}
+
+/* Consistent document text */
+.document-list,
+.uploaded-documents {
+  color: #40534c;
+}
+
+/* Document list */
+
+.document-list {
+  margin-top: 32px;
+  padding-top: 25px;
+  border-top: 1px solid #e6ece9;
+}
+
+.document-list h3 {
+  color: #263a35;
+  font-size: 17px;
+  margin-bottom: 18px;
+}
+
+.document-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 17px 18px;
+  margin-bottom: 10px;
+  background: #fafcfb;
+  border: 1px solid #e5ebe7;
+  border-radius: 9px;
+}
+
+.document-card strong {
+  color: #344a42;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.document-card .muted {
+  margin: 7px 0 0;
+  font-size: 12px;
+  color: #87958f;
+}
+
+.document-card .delete-button {
+  flex-shrink: 0;
+  padding: 8px 13px;
+  border: 1px solid #e8d6d4;
+  border-radius: 6px;
+  background: #fff;
+  color: #a34c46;
+  font-size: 12px;
+}
+
+.document-card .delete-button:hover {
+  background: #fbefee;
+}
+
+@media (max-width: 560px) {
+  .document-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+/* ========================================
+   CARE TASK REVIEW — FINAL POLISH
+   ======================================== */
+
+.candidate-card {
+  padding: 22px 24px;
+  margin: 14px 0;
+  border: 1px solid #e2eae5;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.candidate-heading {
+  margin-bottom: 12px;
+}
+
+.candidate-heading strong {
+  font-size: 16px;
+  color: #263a35;
+}
+
+.candidate-text {
+  margin: 0 0 16px;
+  color: #40534c;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+/* Metadata */
+
+.candidate-metadata {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin: 16px 0;
+  color: #71827c;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* Source evidence */
+
+.task-source {
+  margin-top: 18px;
+  border: 1px solid #e7eeea;
+  border-radius: 8px;
+  background: #f8faf9;
+  overflow: hidden;
+}
+
+.task-source summary {
+  padding: 12px 15px;
+  color: #34564c;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.task-source summary:hover {
+  background: #f0f6f2;
+}
+
+.task-source blockquote {
+  margin: 0;
+  padding: 14px 16px;
+  border-top: 1px solid #e7eeea;
+  border-left: 3px solid #9abeb0;
+  color: #64756e;
+  font-size: 13px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+/* Confirm and reject buttons */
+
+.review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.review-actions button {
+  min-width: 105px;
+  padding: 10px 17px;
+  border: 1px solid #176d60;
+  border-radius: 7px;
+  background: #176d60;
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: none;
+  transition: background 0.2s ease;
+}
+
+.review-actions button:hover {
+  background: #12594e;
+}
+
+/* Reject button */
+
+.review-actions button.delete-button {
+  border: 1px solid #e4c8c5;
+  background: #ffffff;
+  color: #a34d47;
+}
+
+.review-actions button.delete-button:hover {
+  background: #fdf2f1;
+}
+
+@media (max-width: 600px) {
+  .candidate-card {
+    padding: 16px;
+  }
+
+  .candidate-metadata {
+    flex-direction: column;
+    gap: 6px;
+  }
+}
+
+/* Care task review buttons */
+
+.review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.review-actions button {
+  margin: 0;
+  padding: 10px 18px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: none;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+/* Confirm */
+.review-actions button:first-child {
+  background: #176d60;
+  color: #ffffff;
+}
+
+.review-actions button:first-child:hover {
+  background: #12594e;
+  transform: translateY(-1px);
+}
+
+/* Reject */
+.review-actions button:last-child {
+  background: #fdf0ef;
+  color: #a13d38;
+  border-color: #f3d8d5;
+}
+
+.review-actions button:last-child:hover {
+  background: #f9e2df;
+  transform: translateY(-1px);
+}
+
+.review-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.candidate-card .review-actions button {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  margin: 0 !important;
+  padding: 10px 18px !important;
+  border: 1px solid transparent !important;
+  border-radius: 7px !important;
+  font-family: inherit !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  box-shadow: none !important;
+  cursor: pointer;
+}
+
+.candidate-card .review-actions button:first-child {
+  background: #176d60 !important;
+  color: white !important;
+}
+
+.candidate-card .review-actions button:last-child {
+  background: #fdf0ef !important;
+  color: #a13d38 !important;
+  border-color: #f3d8d5 !important;
+}
+
+.candidate-card .review-actions button:hover {
+  transform: translateY(-1px);
+}
+
+#question-document {
+  color: #263a35;
+  background-color: #ffffff;
+}
+
+#question-document option {
+  color: #263a35;
+  background-color: #ffffff;
 }

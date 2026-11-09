@@ -178,28 +178,32 @@ export default function DocumentUpload({candidates, onCandidatesChange, onDocume
 
   return (
     <section className="document-upload">
-      <h2>Upload discharge instructions</h2>
-      <p>
-        Extract document text and review possible care tasks.
-      </p>
+      <div className="upload-intro">
+        <h2>Upload discharge instructions</h2>
+        <p>
+          Extract document text and review possible care tasks.
+        </p>
+      </div>
 
-      <input
-        type="file"
-        accept="application/pdf,.pdf"
-        onChange={(event) => {
-          setFile(event.target.files?.[0] ?? null);
-          setResult(null);
-          setError("");
-        }}
-      />
+      <div className="upload-controls">
+        <input
+          type="file"
+          accept="application/pdf,.pdf"
+          onChange={(event) => {
+            setFile(event.target.files?.[0] ?? null);
+            setResult(null);
+            setError("");
+          }}
+        />
 
-      <button
-        type="button"
-        onClick={handleUpload}
-        disabled={!file || loading}
-      >
-        {loading ? "Extracting..." : "Upload and extract"}
-      </button>
+        <button
+          type="button"
+          onClick={handleUpload}
+          disabled={!file || loading}
+        >
+          {loading ? "Extracting..." : "Upload and extract"}
+        </button>
+      </div>
 
       {error && <p className="upload-error">{error}</p>}
 
@@ -212,9 +216,11 @@ export default function DocumentUpload({candidates, onCandidatesChange, onDocume
           <p>
             Extraction method:{" "}
             <strong>
-              {result.extraction_method === "ollama_llama3.2"
-                ? "Local LLM (Llama 3.2)"
-                : "Rule-based fallback"}
+              {result.extraction_method === "groq_gpt_oss_120b"
+                ? "Groq LLM (GPT-OSS 120B)"
+                : result.extraction_method === "rule_based"
+                  ? "Rule-based fallback"
+                  : result.extraction_method}
             </strong>
           </p>
 
